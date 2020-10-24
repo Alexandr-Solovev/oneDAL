@@ -105,3 +105,5 @@ build:dpc-private \
 
 test:dpc-private \
     --test_tag_filters="dpc,-public"
+      --incompatible_require_linker_input_cc_api \
+      --incompatible_java_common_parameters
