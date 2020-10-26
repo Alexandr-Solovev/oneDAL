@@ -105,5 +105,13 @@ build:dpc-private \
 
 test:dpc-private \
     --test_tag_filters="dpc,-public"
+build -c opt
+
+build --incompatible_enable_cc_toolchain_resolution \
       --incompatible_require_linker_input_cc_api \
       --incompatible_java_common_parameters
+
+build --javabase=@onedal_jdk_toolchain//:local \
+      --host_javabase=@onedal_jdk_toolchain//:local \
+      --java_toolchain=@onedal_jdk_toolchain//:vanilla \
+      --host_java_toolchain=@onedal_jdk_toolchain//:vanilla
