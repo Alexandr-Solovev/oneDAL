@@ -48,7 +48,11 @@ int main(int argc, char * argv[])
     MPI_Init(&argc, &argv);
     MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
     MPI_Comm_rank(MPI_COMM_WORLD, &rankId);
+    cl::sycl::queue queue(device);
+    std::cout << "Running on " << nameDevice << "\n\n";
 
+    SyclExecutionContext ctx(queue);
+    services::Environment::getInstance()->setDefaultExecutionContext(ctx);
     /* Initialize FileDataSource<CSVFeatureManager> to retrieve the input data from a .csv file */
     FileDataSource<CSVFeatureManager> dataSource(datasetFileNames[rankId], DataSource::doAllocateNumericTable, DataSource::doDictionaryFromContext);
 
