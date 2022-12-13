@@ -17,6 +17,7 @@
 #include "oneapi/dal/algo/pca/backend/gpu/train_kernel_svd_impl.hpp"
 #include "oneapi/dal/backend/common.hpp"
 #include "oneapi/dal/detail/common.hpp"
+#include <iostream>
 #include "oneapi/dal/backend/primitives/ndarray.hpp"
 #include "oneapi/dal/detail/profiler.hpp"
 #include "oneapi/dal/backend/primitives/lapack.hpp"
@@ -69,21 +70,14 @@ result_t train_kernel_svd_impl<Float>::operator()(const descriptor_t& desc, cons
     ONEDAL_ASSERT(input.get_data().has_data());
     const auto data = input.get_data();
 
-    std::int64_t row_count = data.get_row_count();
-    auto rows_count_global = row_count;
     ONEDAL_ASSERT(data.get_column_count() > 0);
     std::int64_t column_count = data.get_column_count();
     ONEDAL_ASSERT(column_count > 0);
     const std::int64_t component_count = get_component_count(desc, data);
     ONEDAL_ASSERT(component_count > 0);
     auto result = train_result<task_t>{}.set_result_options(desc.get_result_options());
-
+    std::cout<<"heheheh"<<std::endl;
     const auto data_nd = pr::table2ndarray<Float>(q_, data, alloc::device);
-    auto [sums, sums_event] = compute_sums(q_, data_nd);
-    {
-        ONEDAL_PROFILER_TASK(allreduce_sums, q_);
-        comm_.allreduce(sums.flatten(q_, { sums_event }), spmd::reduce_op::sum).wait();
-    }
     auto xtx = pr::ndarray<Float, 2>::empty(q_, { column_count, column_count }, alloc::device);
     sycl::event gemm_event;
     {
@@ -92,14 +86,6 @@ result_t train_kernel_svd_impl<Float>::operator()(const descriptor_t& desc, cons
         gemm_event.wait_and_throw();
     }
 
-    {
-        ONEDAL_PROFILER_TASK(allreduce_xtx, q_);
-        comm_.allreduce(xtx.flatten(q_, { gemm_event }), spmd::reduce_op::sum).wait();
-    }
-    {
-        ONEDAL_PROFILER_TASK(allreduce_rows_count_global);
-        comm_.allreduce(rows_count_global, spmd::reduce_op::sum).wait();
-    }
 
     if (desc.get_result_options().test(result_options::eigenvectors |
                                        result_options::eigenvalues)) {
