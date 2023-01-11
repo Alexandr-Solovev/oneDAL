@@ -246,7 +246,7 @@ sycl::event kernels_fp<Float>::assign_clusters(sycl::queue& queue,
                                       { selection_event });
         }
         auto response_block =
-            pr::ndview<std::int32_t, 2>::wrap(responses.get_mutable_data() + row_offset,
+            pr::ndview<std::int64_t, 2>::wrap(responses.get_mutable_data() + row_offset,
                                               { cur_rows, 1 });
         auto closest_distance_block =
             pr::ndview<Float, 2>::wrap(closest_distances.get_mutable_data() + row_offset,
@@ -317,7 +317,7 @@ template <typename Float>
 sycl::event kernels_fp<Float>::partial_reduce_centroids(
     sycl::queue& queue,
     const pr::ndview<Float, 2>& data,
-    const pr::ndview<std::int32_t, 2>& responses,
+    const pr::ndview<std::int64_t, 2>& responses,
     std::int64_t cluster_count,
     std::int64_t part_count,
     pr::ndview<Float, 2>& partial_centroids,
