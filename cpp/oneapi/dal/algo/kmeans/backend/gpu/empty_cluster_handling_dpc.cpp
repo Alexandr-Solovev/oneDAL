@@ -26,7 +26,7 @@ template <typename Float>
 static auto fill_candidate_indices_and_distances(sycl::queue& queue,
                                                  std::int64_t candidate_count,
                                                  const pr::ndview<Float, 2>& closest_distances,
-                                                 pr::ndview<std::int32_t, 1>& candidate_indices,
+                                                 pr::ndview<std::int64_t, 1>& candidate_indices,
                                                  pr::ndview<Float, 1>& candidate_distances,
                                                  const bk::event_vector& deps = {}) -> sycl::event {
     ONEDAL_PROFILER_TASK(fill_candidates, queue);
@@ -38,12 +38,12 @@ static auto fill_candidate_indices_and_distances(sycl::queue& queue,
 
     constexpr auto alloc = sycl::usm::alloc::device;
     const std::int64_t elem_count = closest_distances.get_dimension(0);
-    auto indices = pr::ndarray<std::int32_t, 1>::empty(queue, { elem_count }, alloc);
+    auto indices = pr::ndarray<std::int64_t, 1>::empty(queue, { elem_count }, alloc);
     auto values = pr::ndarray<Float, 1>::empty(queue, { elem_count }, alloc);
 
     const Float* closest_distances_ptr = closest_distances.get_data();
-    std::int32_t* indices_ptr = indices.get_mutable_data();
-    std::int32_t* candidate_indices_ptr = candidate_indices.get_mutable_data();
+    std::int64_t* indices_ptr = indices.get_mutable_data();
+    std::int64_t* candidate_indices_ptr = candidate_indices.get_mutable_data();
     Float* values_ptr = values.get_mutable_data();
     Float* candidate_distances_ptr = candidate_distances.get_mutable_data();
 
@@ -55,7 +55,7 @@ static auto fill_candidate_indices_and_distances(sycl::queue& queue,
         });
     });
 
-    pr::radix_sort_indices_inplace<Float, std::int32_t> radix_sort{ queue };
+    pr::radix_sort_indices_inplace<Float, std::int64_t> radix_sort{ queue };
     auto sort_event = radix_sort(values, indices, { fill_event });
 
     auto copy_event = queue.submit([&](sycl::handler& cgh) {
@@ -75,8 +75,8 @@ static auto fill_candidate_indices_and_distances(sycl::queue& queue,
 
 static auto fill_empty_cluster_indices(sycl::queue& queue,
                                        std::int64_t candidate_count,
-                                       const pr::ndarray<std::int32_t, 1>& counters,
-                                       pr::ndarray<std::int32_t, 1>& empty_cluster_indices,
+                                       const pr::ndarray<std::int64_t, 1>& counters,
+                                       pr::ndarray<std::int64_t, 1>& empty_cluster_indices,
                                        const bk::event_vector& deps = {}) -> sycl::event {
     ONEDAL_PROFILER_TASK(fill_indices, queue);
     const std::int64_t cluster_count = counters.get_dimension(0);
@@ -87,10 +87,10 @@ static auto fill_empty_cluster_indices(sycl::queue& queue,
     ONEDAL_ASSERT(empty_cluster_indices.get_dimension(0) >= candidate_count);
 
     const auto host_counters = counters.to_host(queue);
-    const auto host_empty_cluster_indices = bk::make_unique_host<std::int32_t>(candidate_count);
+    const auto host_empty_cluster_indices = bk::make_unique_host<std::int64_t>(candidate_count);
 
-    const std::int32_t* host_counters_ptr = host_counters.get_data();
-    std::int32_t* host_empty_cluster_indices_ptr = host_empty_cluster_indices.get();
+    const std::int64_t* host_counters_ptr = host_counters.get_data();
+    std::int64_t* host_empty_cluster_indices_ptr = host_empty_cluster_indices.get();
 
     std::int64_t counter = 0;
     for (std::int64_t i = 0; i < cluster_count; i++) {
@@ -128,8 +128,8 @@ static auto copy_candidates_from_data(sycl::queue& queue,
 
     const Float* data_ptr = data.get_data();
     Float* centroids_ptr = centroids.get_mutable_data();
-    const std::int32_t* candidate_indices_ptr = candidates.get_indices().get_data();
-    const std::int32_t* empty_cluster_indices_ptr =
+    const std::int64_t* candidate_indices_ptr = candidates.get_indices().get_data();
+    const std::int64_t* empty_cluster_indices_ptr =
         candidates.get_empty_cluster_indices().get_data();
 
     auto event = queue.submit([&](sycl::handler& cgh) {
@@ -162,7 +162,7 @@ static auto gather_candidates(sycl::queue& queue,
     const std::int64_t candidate_count = candidates.get_candidate_count();
 
     const Float* data_ptr = data.get_data();
-    const std::int32_t* candidate_indices_ptr = candidates.get_indices().get_data();
+    const std::int64_t* candidate_indices_ptr = candidates.get_indices().get_data();
     Float* gathered_candidates_ptr = gathered_candidates.get_mutable_data();
 
     auto event = queue.submit([&](sycl::handler& cgh) {
@@ -182,7 +182,7 @@ static auto gather_candidates(sycl::queue& queue,
 
 template <typename Float>
 static auto scatter_candidates(sycl::queue& queue,
-                               const pr::ndview<std::int32_t, 1>& empty_cluster_indices,
+                               const pr::ndview<std::int64_t, 1>& empty_cluster_indices,
                                const pr::ndview<Float, 2>& candidates,
                                pr::ndview<Float, 2>& centroids,
                                const bk::event_vector& deps) -> sycl::event {
@@ -193,7 +193,7 @@ static auto scatter_candidates(sycl::queue& queue,
     const std::int64_t candidate_count = candidates.get_dimension(0);
     const std::int64_t column_count = candidates.get_dimension(1);
 
-    const std::int32_t* empty_cluster_indices_ptr = empty_cluster_indices.get_data();
+    const std::int64_t* empty_cluster_indices_ptr = empty_cluster_indices.get_data();
     const Float* candidates_ptr = candidates.get_data();
     Float* centroids_ptr = centroids.get_mutable_data();
 
@@ -255,9 +255,9 @@ static auto reduce_candidates(sycl::queue& queue,
                                                 host_all_distances.flatten());
     }
 
-    auto host_all_indices = bk::make_unique_host<std::int32_t>(all_candidate_count);
+    auto host_all_indices = bk::make_unique_host<std::int64_t>(all_candidate_count);
     {
-        std::int32_t* host_all_indices_ptr = host_all_indices.get();
+        std::int64_t* host_all_indices_ptr = host_all_indices.get();
         for (std::int64_t i = 0; i < all_candidate_count; i++) {
             host_all_indices_ptr[i] = i;
         }
@@ -268,13 +268,13 @@ static auto reduce_candidates(sycl::queue& queue,
 
     {
         ONEDAL_ASSERT(candidate_count <= all_candidate_count);
-        std::int32_t* host_all_indices_ptr = host_all_indices.get();
+        std::int64_t* host_all_indices_ptr = host_all_indices.get();
         const Float* host_all_distances_ptr = host_all_distances.get_data();
 
         std::partial_sort(host_all_indices_ptr,
                           host_all_indices_ptr + candidate_count,
                           host_all_indices_ptr + all_candidate_count,
-                          [=](std::int32_t i, std::int32_t j) {
+                          [=](std::int64_t i, std::int64_t j) {
                               return host_all_distances_ptr[i] > host_all_distances_ptr[j];
                           });
 
@@ -287,7 +287,7 @@ static auto reduce_candidates(sycl::queue& queue,
     {
         const Float* host_all_candidates_ptr = host_all_candidates.get_data();
         const Float* host_all_distances_ptr = host_all_distances.get_data();
-        const std::int32_t* host_all_indices_ptr = host_all_indices.get();
+        const std::int64_t* host_all_indices_ptr = host_all_indices.get();
         Float* host_distances_ptr = host_distances.get_mutable_data();
         Float* host_candidates_ptr = host_candidates.get_mutable_data();
 
@@ -361,7 +361,7 @@ template <typename Float>
 auto find_candidates(sycl::queue& queue,
                      std::int64_t candidate_count,
                      const pr::ndarray<Float, 2>& closest_distances,
-                     const pr::ndarray<std::int32_t, 1>& counters,
+                     const pr::ndarray<std::int64_t, 1>& counters,
                      const bk::event_vector& deps)
     -> std::tuple<centroid_candidates<Float>, sycl::event> {
     ONEDAL_PROFILER_TASK(find_candidates, queue);
@@ -371,9 +371,9 @@ auto find_candidates(sycl::queue& queue,
 
     constexpr auto alloc = sycl::usm::alloc::device;
     const auto shape = pr::ndshape<1>{ candidate_count };
-    auto candidate_indices = pr::ndarray<std::int32_t, 1>::empty(queue, shape, alloc);
+    auto candidate_indices = pr::ndarray<std::int64_t, 1>::empty(queue, shape, alloc);
     auto candidate_distances = pr::ndarray<Float, 1>::empty(queue, shape, alloc);
-    auto empty_cluster_indices = pr::ndarray<std::int32_t, 1>::empty(queue, shape, alloc);
+    auto empty_cluster_indices = pr::ndarray<std::int64_t, 1>::empty(queue, shape, alloc);
 
     auto fill_indices_and_distances_event =
         fill_candidate_indices_and_distances(queue,
@@ -416,7 +416,7 @@ auto fill_empty_clusters(sycl::queue& queue,
     template auto find_candidates(sycl::queue& queue,                                          \
                                   std::int64_t candidate_count,                                \
                                   const pr::ndarray<Float, 2>& closest_distances,              \
-                                  const pr::ndarray<std::int32_t, 1>& counters,                \
+                                  const pr::ndarray<std::int64_t, 1>& counters,                \
                                   const bk::event_vector& deps)                                \
         ->std::tuple<centroid_candidates<Float>, sycl::event>;                                 \
                                                                                                \

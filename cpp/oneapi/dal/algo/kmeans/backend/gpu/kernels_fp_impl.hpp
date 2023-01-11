@@ -123,7 +123,7 @@ sycl::event kernels_fp<Float>::select(sycl::queue& queue,
                                       const pr::ndview<Float, 2>& distances,
                                       const pr::ndview<Float, 1>& centroid_squares,
                                       pr::ndview<Float, 2>& selection,
-                                      pr::ndview<std::int32_t, 2>& indices,
+                                      pr::ndview<std::int64_t, 2>& indices,
                                       const bk::event_vector& deps) {
     ONEDAL_PROFILER_TASK(select_min_distance, queue);
     ONEDAL_ASSERT(indices.get_dimension(0) == distances.get_dimension(0));
@@ -136,8 +136,8 @@ sycl::event kernels_fp<Float>::select(sycl::queue& queue,
     const std::int64_t row_count = distances.get_dimension(0);
     const std::int64_t stride = distances.get_dimension(1);
 
-    const std::int64_t cluster_count_as_int32 =
-        dal::detail::integral_cast<std::int32_t>(cluster_count);
+    const std::int64_t cluster_count_as_int64 =
+        dal::detail::integral_cast<std::int64_t>(cluster_count);
 
     const std::int64_t preffered_wg_size = bk::device_max_wg_size(queue);
     const std::int64_t wg_size =
@@ -147,7 +147,7 @@ sycl::event kernels_fp<Float>::select(sycl::queue& queue,
     const Float* distances_ptr = distances.get_data();
     const Float* centroid_squares_ptr = centroid_squares.get_data();
     Float* selection_ptr = selection.get_mutable_data();
-    std::int32_t* indices_ptr = indices.get_mutable_data();
+    std::int64_t* indices_ptr = indices.get_mutable_data();
     const auto fp_max = dal::detail::limits<Float>::max();
 
     auto event = queue.submit([&](sycl::handler& cgh) {
@@ -168,12 +168,12 @@ sycl::event kernels_fp<Float>::select(sycl::queue& queue,
                 const std::int64_t local_id = sg.get_local_id()[0];
                 const std::int64_t local_range = sg.get_local_range()[0];
 
-                std::int32_t index = -1;
+                std::int64_t index = -1;
                 Float value = fp_max;
-                for (std::int64_t i = local_id; i < cluster_count_as_int32; i += local_range) {
+                for (std::int64_t i = local_id; i < cluster_count_as_int64; i += local_range) {
                     const Float cur_val = distances_ptr[in_offset + i] + centroid_squares_ptr[i];
                     if (cur_val < value) {
-                        index = static_cast<std::int32_t>(i);
+                        index = static_cast<std::int64_t>(i);
                         value = cur_val;
                     }
                 }
@@ -183,15 +183,15 @@ sycl::event kernels_fp<Float>::select(sycl::queue& queue,
                 const Float final_value =
                     sycl::reduce_over_group(sg, value, sycl::ext::oneapi::minimum<Float>());
                 const bool present = (final_value == value);
-                const std::int32_t pos =
+                const std::int64_t pos =
                     sycl::exclusive_scan_over_group(sg,
                                                     present ? 1 : 0,
-                                                    sycl::ext::oneapi::plus<std::int32_t>());
+                                                    sycl::ext::oneapi::plus<std::int64_t>());
                 const bool owner = present && pos == 0;
-                const std::int32_t final_index =
+                const std::int64_t final_index =
                     -sycl::reduce_over_group(sg,
                                              owner ? -index : 1,
-                                             sycl::ext::oneapi::minimum<std::int32_t>());
+                                             sycl::ext::oneapi::minimum<std::int64_t>());
 
                 if (local_id == 0) {
                     indices_ptr[out_offset] = final_index;
@@ -209,7 +209,7 @@ sycl::event kernels_fp<Float>::assign_clusters(sycl::queue& queue,
                                                const pr::ndview<Float, 1>& data_squares,
                                                const pr::ndview<Float, 1>& centroid_squares,
                                                std::int64_t block_size_in_rows,
-                                               pr::ndview<std::int32_t, 2>& responses,
+                                               pr::ndview<std::int64_t, 2>& responses,
                                                pr::ndview<Float, 2>& distances,
                                                pr::ndview<Float, 2>& closest_distances,
                                                const bk::event_vector& deps) {
@@ -246,7 +246,7 @@ sycl::event kernels_fp<Float>::assign_clusters(sycl::queue& queue,
                                       { selection_event });
         }
         auto response_block =
-            pr::ndview<std::int32_t, 2>::wrap(responses.get_mutable_data() + row_offset,
+            pr::ndview<std::int64_t, 2>::wrap(responses.get_mutable_data() + row_offset,
                                               { cur_rows, 1 });
         auto closest_distance_block =
             pr::ndview<Float, 2>::wrap(closest_distances.get_mutable_data() + row_offset,
@@ -265,7 +265,7 @@ sycl::event kernels_fp<Float>::assign_clusters(sycl::queue& queue,
 
 template <typename Float>
 sycl::event kernels_fp<Float>::merge_reduce_centroids(sycl::queue& queue,
-                                                      const pr::ndview<std::int32_t, 1>& counters,
+                                                      const pr::ndview<std::int64_t, 1>& counters,
                                                       const pr::ndview<Float, 2>& partial_centroids,
                                                       std::int64_t part_count,
                                                       pr::ndview<Float, 2>& centroids,
@@ -276,7 +276,7 @@ sycl::event kernels_fp<Float>::merge_reduce_centroids(sycl::queue& queue,
     ONEDAL_ASSERT(counters.get_dimension(0) == centroids.get_dimension(0));
     const Float* partial_centroids_ptr = partial_centroids.get_data();
     Float* centroids_ptr = centroids.get_mutable_data();
-    const std::int32_t* counters_ptr = counters.get_data();
+    const std::int64_t* counters_ptr = counters.get_data();
     const auto column_count = centroids.get_dimension(1);
     const auto cluster_count = centroids.get_dimension(0);
     const auto sg_size_to_set = get_gpu_sg_size(queue);
@@ -317,7 +317,7 @@ template <typename Float>
 sycl::event kernels_fp<Float>::partial_reduce_centroids(
     sycl::queue& queue,
     const pr::ndview<Float, 2>& data,
-    const pr::ndview<std::int32_t, 2>& responses,
+    const pr::ndview<std::int64_t, 2>& responses,
     std::int64_t cluster_count,
     std::int64_t part_count,
     pr::ndview<Float, 2>& partial_centroids,
@@ -329,7 +329,7 @@ sycl::event kernels_fp<Float>::partial_reduce_centroids(
     ONEDAL_ASSERT(responses.get_dimension(0) == data.get_dimension(0));
     ONEDAL_ASSERT(responses.get_dimension(1) == 1);
     const Float* data_ptr = data.get_data();
-    const std::int32_t* response_ptr = responses.get_data();
+    const std::int64_t* response_ptr = responses.get_data();
     Float* partial_centroids_ptr = partial_centroids.get_mutable_data();
     const auto row_count = data.get_dimension(0);
     const auto column_count = data.get_dimension(1);
@@ -349,12 +349,12 @@ sycl::event kernels_fp<Float>::partial_reduce_centroids(
                 const std::int64_t local_id = sg.get_local_id()[0];
                 const std::int64_t local_range = sg.get_local_range()[0];
                 for (std::int64_t i = sg_global_id; i < row_count; i += part_count) {
-                    std::int32_t cl = -1;
+                    std::int64_t cl = -1;
                     if (local_id == 0) {
                         cl = response_ptr[i];
                     }
                     cl =
-                        sycl::reduce_over_group(sg, cl, sycl::ext::oneapi::maximum<std::int32_t>());
+                        sycl::reduce_over_group(sg, cl, sycl::ext::oneapi::maximum<std::int64_t>());
                     for (std::int64_t j = local_id; j < column_count; j += local_range) {
                         partial_centroids_ptr[sg_global_id * cluster_count * column_count +
                                               cl * column_count + j] +=
@@ -421,11 +421,11 @@ sycl::event kernels_fp<Float>::compute_squares(sycl::queue& queue,
             bk::make_multiple_nd_range_2d({ wg_size, row_count }, { wg_size, 1 }),
             [=](sycl::nd_item<2> item) {
                 auto sg = item.get_sub_group();
-                const std::uint32_t sg_id = sg.get_group_id()[0];
+                const std::uint64_t sg_id = sg.get_group_id()[0];
                 if (sg_id > 0)
                     return;
                 const std::uint64_t sg_local_id = sg.get_local_id()[0];
-                const std::uint32_t sg_local_range = sg.get_local_range()[0];
+                const std::uint64_t sg_local_range = sg.get_local_range()[0];
                 const std::uint64_t wg_id = item.get_global_id(1);
                 const std::uint64_t offset = wg_id * column_count;
 

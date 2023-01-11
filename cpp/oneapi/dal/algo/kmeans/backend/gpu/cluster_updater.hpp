@@ -73,7 +73,7 @@ public:
             { part_count_ * cluster_count_, column_count_ },
             sycl::usm::alloc::device);
 
-        counters_ = pr::ndarray<std::int32_t, 1>::empty( //
+        counters_ = pr::ndarray<std::int64_t, 1>::empty( //
             queue_,
             cluster_count_,
             sycl::usm::alloc::device);
@@ -83,7 +83,7 @@ public:
                 pr::ndarray<Float, 2>& distance_block,
                 pr::ndarray<Float, 2>& closest_distances,
                 pr::ndarray<Float, 1>& objective_function,
-                pr::ndarray<std::int32_t, 2>& responses,
+                pr::ndarray<std::int64_t, 2>& responses,
                 const bk::event_vector& deps = {}) -> std::tuple<Float, sycl::event> {
         ONEDAL_ASSERT(data_.get_dimension(0) == row_count_);
         ONEDAL_ASSERT(data_.get_dimension(1) == column_count_);
@@ -192,7 +192,7 @@ private:
     pr::ndarray<Float, 2> partial_centroids_;
     pr::ndarray<Float, 1> centroid_squares_;
     pr::ndarray<Float, 1> data_squares_;
-    pr::ndarray<std::int32_t, 1> counters_;
+    pr::ndarray<std::int64_t, 1> counters_;
 };
 
 } // namespace oneapi::dal::kmeans::backend

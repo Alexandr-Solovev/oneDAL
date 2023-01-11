@@ -28,9 +28,9 @@ namespace spmd = oneapi::dal::preview::spmd;
 template <typename Float>
 class centroid_candidates {
 public:
-    explicit centroid_candidates(const pr::ndarray<std::int32_t, 1>& indices,
+    explicit centroid_candidates(const pr::ndarray<std::int64_t, 1>& indices,
                                  const pr::ndarray<Float, 1>& distances,
-                                 const pr::ndarray<std::int32_t, 1>& empty_cluster_indices)
+                                 const pr::ndarray<std::int64_t, 1>& empty_cluster_indices)
             : candidate_count_(indices.get_dimension(0)),
               indices_(indices),
               distances_(distances),
@@ -44,7 +44,7 @@ public:
         return candidate_count_;
     }
 
-    const pr::ndarray<std::int32_t, 1>& get_indices() const {
+    const pr::ndarray<std::int64_t, 1>& get_indices() const {
         return indices_;
     }
 
@@ -52,22 +52,22 @@ public:
         return distances_;
     }
 
-    const pr::ndarray<std::int32_t, 1>& get_empty_cluster_indices() const {
+    const pr::ndarray<std::int64_t, 1>& get_empty_cluster_indices() const {
         return empty_cluster_indices_;
     }
 
 private:
     std::int64_t candidate_count_;
-    pr::ndarray<std::int32_t, 1> indices_;
+    pr::ndarray<std::int64_t, 1> indices_;
     pr::ndarray<Float, 1> distances_;
-    pr::ndarray<std::int32_t, 1> empty_cluster_indices_;
+    pr::ndarray<std::int64_t, 1> empty_cluster_indices_;
 };
 
 template <typename Float>
 auto find_candidates(sycl::queue& queue,
                      std::int64_t candidate_count,
                      const pr::ndarray<Float, 2>& closest_distances,
-                     const pr::ndarray<std::int32_t, 1>& counters,
+                     const pr::ndarray<std::int64_t, 1>& counters,
                      const bk::event_vector& deps = {})
     -> std::tuple<centroid_candidates<Float>, sycl::event>;
 
@@ -120,7 +120,7 @@ inline auto handle_empty_clusters(sycl::queue& queue,
                                   std::int64_t candidate_count,
                                   const pr::ndview<Float, 2>& data,
                                   const pr::ndarray<Float, 2>& closest_distances,
-                                  const pr::ndarray<std::int32_t, 1>& counters,
+                                  const pr::ndarray<std::int64_t, 1>& counters,
                                   pr::ndview<Float, 2>& centroids,
                                   const bk::event_vector& deps = {})
     -> std::tuple<Float, sycl::event> {

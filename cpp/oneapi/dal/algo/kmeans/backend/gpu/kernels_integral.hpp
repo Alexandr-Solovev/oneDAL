@@ -27,14 +27,14 @@ namespace bk = dal::backend;
 namespace pr = dal::backend::primitives;
 
 sycl::event count_clusters(sycl::queue& queue,
-                           const pr::ndview<std::int32_t, 2>& responses,
+                           const pr::ndview<std::int64_t, 2>& responses,
                            std::int64_t cluster_count,
-                           pr::ndview<std::int32_t, 1>& counters,
+                           pr::ndview<std::int64_t, 1>& counters,
                            const bk::event_vector& deps = {});
 
 std::int64_t count_empty_clusters(sycl::queue& queue,
                                   std::int64_t cluster_count,
-                                  pr::ndview<std::int32_t, 1>& counters,
+                                  pr::ndview<std::int64_t, 1>& counters,
                                   const bk::event_vector& deps = {});
 #endif
 

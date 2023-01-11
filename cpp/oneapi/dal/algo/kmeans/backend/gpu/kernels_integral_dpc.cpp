@@ -43,21 +43,21 @@ struct partial_counters {};
 struct merge_counters {};
 
 sycl::event count_clusters(sycl::queue& queue,
-                           const pr::ndview<std::int32_t, 2>& responses,
+                           const pr::ndview<std::int64_t, 2>& responses,
                            std::int64_t cluster_count,
-                           pr::ndview<std::int32_t, 1>& counters,
+                           pr::ndview<std::int64_t, 1>& counters,
                            const bk::event_vector& deps) {
     ONEDAL_PROFILER_TASK(count_clusters, queue);
     ONEDAL_ASSERT(counters.get_dimension(0) == cluster_count);
     ONEDAL_ASSERT(responses.get_dimension(1) == 1);
-    ONEDAL_ASSERT(cluster_count <= dal::detail::limits<std::int32_t>::max());
-    ONEDAL_ASSERT(responses.get_dimension(0) <= dal::detail::limits<std::int32_t>::max());
+    ONEDAL_ASSERT(cluster_count <= dal::detail::limits<std::int64_t>::max());
+    ONEDAL_ASSERT(responses.get_dimension(0) <= dal::detail::limits<std::int64_t>::max());
     ONEDAL_ASSERT(cluster_count > 0);
 
     const auto row_count = responses.get_dimension(0);
 
-    const std::int32_t* response_ptr = responses.get_data();
-    std::int32_t* counter_ptr = counters.get_mutable_data();
+    const std::int64_t* response_ptr = responses.get_data();
+    std::int64_t* counter_ptr = counters.get_mutable_data();
 
     auto fill_event = queue.submit([&](sycl::handler& cgh) {
         cgh.depends_on(deps);
@@ -92,8 +92,8 @@ sycl::event count_clusters(sycl::queue& queue,
             const std::int64_t end =
                 (offset + block_size) > row_count ? row_count : (offset + block_size);
             for (std::int64_t i = offset + local_id; i < end; i += local_range) {
-                const std::int32_t cl = response_ptr[i];
-                sycl::atomic_ref<std::int32_t,
+                const std::int64_t cl = response_ptr[i];
+                sycl::atomic_ref<std::int64_t,
                                  sycl::memory_order::relaxed,
                                  sycl::memory_scope::device,
                                  sycl::access::address_space::ext_intel_global_device_space>
@@ -108,18 +108,18 @@ sycl::event count_clusters(sycl::queue& queue,
 
 std::int64_t count_empty_clusters(sycl::queue& queue,
                                   std::int64_t cluster_count,
-                                  pr::ndview<std::int32_t, 1>& counters,
+                                  pr::ndview<std::int64_t, 1>& counters,
                                   const bk::event_vector& deps) {
     ONEDAL_PROFILER_TASK(count_empty_clusters, queue);
     ONEDAL_ASSERT(counters.get_dimension(0) == cluster_count);
-    ONEDAL_ASSERT(cluster_count <= dal::detail::limits<std::int32_t>::max());
+    ONEDAL_ASSERT(cluster_count <= dal::detail::limits<std::int64_t>::max());
     ONEDAL_ASSERT(cluster_count > 0);
 
     auto empty_cluster_count =
-        pr::ndarray<std::int32_t, 1>::empty(queue, { 1 }, sycl::usm::alloc::device);
+        pr::ndarray<std::int64_t, 1>::empty(queue, { 1 }, sycl::usm::alloc::device);
 
-    const std::int32_t* counter_ptr = counters.get_data();
-    std::int32_t* value_ptr = empty_cluster_count.get_mutable_data();
+    const std::int64_t* counter_ptr = counters.get_data();
+    std::int64_t* value_ptr = empty_cluster_count.get_mutable_data();
 
     auto event = queue.submit([&](sycl::handler& cgh) {
         cgh.depends_on(deps);
@@ -134,11 +134,11 @@ std::int64_t count_empty_clusters(sycl::queue& queue,
                     return;
                 const std::int64_t local_id = sg.get_local_id()[0];
                 const std::int64_t local_range = sg.get_local_range()[0];
-                std::int32_t sum = 0;
+                std::int64_t sum = 0;
                 for (std::int64_t i = local_id; i < cluster_count; i += local_range) {
                     sum += counter_ptr[i] == 0;
                 }
-                sum = sycl::reduce_over_group(sg, sum, sycl::ext::oneapi::plus<std::int32_t>());
+                sum = sycl::reduce_over_group(sg, sum, sycl::ext::oneapi::plus<std::int64_t>());
                 if (local_id == 0) {
                     value_ptr[0] = sum;
                 }
