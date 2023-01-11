@@ -39,7 +39,7 @@ struct kernels_fp {
                               const pr::ndview<Float, 2>& data,
                               const pr::ndview<Float, 1>& centroid_squares,
                               pr::ndview<Float, 2>& selection,
-                              pr::ndview<std::int32_t, 2>& indices,
+                              pr::ndview<std::int64_t, 2>& indices,
                               const bk::event_vector& deps = {});
     static sycl::event assign_clusters(sycl::queue& queue,
                                        const pr::ndview<Float, 2>& data,

@@ -123,7 +123,7 @@ sycl::event kernels_fp<Float>::select(sycl::queue& queue,
                                       const pr::ndview<Float, 2>& distances,
                                       const pr::ndview<Float, 1>& centroid_squares,
                                       pr::ndview<Float, 2>& selection,
-                                      pr::ndview<std::int32_t, 2>& indices,
+                                      pr::ndview<std::int64_t, 2>& indices,
                                       const bk::event_vector& deps) {
     ONEDAL_PROFILER_TASK(select_min_distance, queue);
     ONEDAL_ASSERT(indices.get_dimension(0) == distances.get_dimension(0));
