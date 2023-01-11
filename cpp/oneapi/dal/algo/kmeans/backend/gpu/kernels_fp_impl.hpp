@@ -329,7 +329,7 @@ sycl::event kernels_fp<Float>::partial_reduce_centroids(
     ONEDAL_ASSERT(responses.get_dimension(0) == data.get_dimension(0));
     ONEDAL_ASSERT(responses.get_dimension(1) == 1);
     const Float* data_ptr = data.get_data();
-    const std::int32_t* response_ptr = responses.get_data();
+    const std::int64_t* response_ptr = responses.get_data();
     Float* partial_centroids_ptr = partial_centroids.get_mutable_data();
     const auto row_count = data.get_dimension(0);
     const auto column_count = data.get_dimension(1);
