@@ -209,7 +209,7 @@ sycl::event kernels_fp<Float>::assign_clusters(sycl::queue& queue,
                                                const pr::ndview<Float, 1>& data_squares,
                                                const pr::ndview<Float, 1>& centroid_squares,
                                                std::int64_t block_size_in_rows,
-                                               pr::ndview<std::int32_t, 2>& responses,
+                                               pr::ndview<std::int64_t, 2>& responses,
                                                pr::ndview<Float, 2>& distances,
                                                pr::ndview<Float, 2>& closest_distances,
                                                const bk::event_vector& deps) {
