@@ -147,7 +147,7 @@ sycl::event kernels_fp<Float>::select(sycl::queue& queue,
     const Float* distances_ptr = distances.get_data();
     const Float* centroid_squares_ptr = centroid_squares.get_data();
     Float* selection_ptr = selection.get_mutable_data();
-    std::int32_t* indices_ptr = indices.get_mutable_data();
+    std::int64_t* indices_ptr = indices.get_mutable_data();
     const auto fp_max = dal::detail::limits<Float>::max();
 
     auto event = queue.submit([&](sycl::handler& cgh) {
