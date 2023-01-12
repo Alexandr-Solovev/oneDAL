@@ -65,7 +65,7 @@ int main(int argc, char* argv[]) {
         const auto& nameDevice = deviceSelector.first;
         const auto& device = deviceSelector.second;
 
-        cl::sycl::queue queue(device);
+        sycl::queue queue(device);
         std::cout << "Running on " << nameDevice << "\n\n";
 
         SyclExecutionContext ctx(queue);
@@ -172,7 +172,7 @@ void doRegression(cl::sycl::queue& q,
             auto testResponsesPtr = testResponsesSharedPtr.get();
             auto trainResponsesPtr = trainResponsesSharedPtr.get();
             h.parallel_for<class regressor>(
-                cl::sycl::range<2>(nTestSamples, nResponses),
+                sycl::range<2>(nTestSamples, nResponses),
                 [=](cl::sycl::id<2> idx) {
                     float acc(0);
                     int trIndex;

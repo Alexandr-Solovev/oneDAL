@@ -74,7 +74,7 @@ public:
 
                 // OpenCl branch
                 auto programPtr = OpenClProgramRef::create(cl::sycl::get_native<cl::sycl::backend::opencl>(_deviceQueue.get_context()),
-                                                           cl::sycl::get_native<cl::sycl::backend::opencl>(_deviceQueue.get_device()), name, program,
+                                                           sycl::get_native<cl::sycl::backend::opencl>(_deviceQueue.get_device()), name, program,
                                                            options, status);
                 DAAL_CHECK_STATUS_RETURN_VOID_IF_FAIL(status);
 
@@ -192,13 +192,13 @@ private:
 #endif // DAAL_DISABLE_LEVEL_ZERO
 
     ExecutionTargetId _executionTarget;
-    cl::sycl::queue & _deviceQueue;
+    sycl::queue & _deviceQueue;
 };
 
 class SyclExecutionContextImpl : public Base, public ExecutionContextIface
 {
 public:
-    explicit SyclExecutionContextImpl(const cl::sycl::queue & deviceQueue)
+    explicit SyclExecutionContextImpl(const sycl::queue & deviceQueue)
         : _deviceQueue(deviceQueue), _kernelFactory(_deviceQueue), _kernelScheduler(_deviceQueue)
     {
         const auto & device          = _deviceQueue.get_device();
@@ -270,10 +270,10 @@ public:
 
     InfoDevice & getInfoDevice() DAAL_C11_OVERRIDE { return _infoDevice; }
 
-    const cl::sycl::queue & getQueue() const { return _deviceQueue; }
+    const sycl::queue & getQueue() const { return _deviceQueue; }
 
 private:
-    cl::sycl::queue _deviceQueue;
+    sycl::queue _deviceQueue;
     OpenClKernelFactory _kernelFactory;
     SyclKernelScheduler _kernelScheduler;
     InfoDevice _infoDevice;

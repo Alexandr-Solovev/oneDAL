@@ -74,7 +74,7 @@ private:
         algorithmFPType * scratchpad = nullptr;
         if (scratchpadSize > 0)
         {
-            scratchpad = cl::sycl::malloc_device<algorithmFPType>(scratchpadSize, _queue);
+            scratchpad = sycl::malloc_device<algorithmFPType>(scratchpadSize, _queue);
             if (scratchpad == nullptr) return ErrorMemoryAllocationFailed;
         }
 
@@ -83,7 +83,7 @@ private:
             _queue.wait_and_throw();
         });
 
-        if (scratchpadSize > 0) cl::sycl::free(scratchpad, _queue);
+        if (scratchpadSize > 0) sycl::free(scratchpad, _queue);
 
         scratchpad = nullptr;
 #else
@@ -93,7 +93,7 @@ private:
     }
 
 private:
-    cl::sycl::queue & _queue;
+    sycl::queue & _queue;
 };
 
 /**
@@ -132,7 +132,7 @@ private:
         algorithmFPType * scratchpad = nullptr;
         if (scratchpadSize > 0)
         {
-            scratchpad = cl::sycl::malloc_device<algorithmFPType>(scratchpadSize, _queue);
+            scratchpad = sycl::malloc_device<algorithmFPType>(scratchpadSize, _queue);
             if (scratchpad == nullptr) return ErrorMemoryAllocationFailed;
         }
 
@@ -141,7 +141,7 @@ private:
             _queue.wait_and_throw();
         });
 
-        if (scratchpadSize > 0) cl::sycl::free(scratchpad, _queue);
+        if (scratchpadSize > 0) sycl::free(scratchpad, _queue);
 
         scratchpad = nullptr;
 #else
@@ -151,7 +151,7 @@ private:
     }
 
 private:
-    cl::sycl::queue & _queue;
+    sycl::queue & _queue;
 };
 
 /** @} */

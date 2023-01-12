@@ -62,7 +62,7 @@ class GemmExecutor
 private:
     struct Execute
     {
-        cl::sycl::queue & queue;
+        sycl::queue & queue;
         const math::Transpose transa;
         const math::Transpose transb;
         const size_t m;
@@ -157,7 +157,7 @@ class SyrkExecutor
 private:
     struct Execute
     {
-        cl::sycl::queue & queue;
+        sycl::queue & queue;
         const math::UpLo upper_lower;
         const math::Transpose trans;
         const size_t n;
@@ -244,7 +244,7 @@ private:
 
     struct Execute
     {
-        cl::sycl::queue & queue;
+        sycl::queue & queue;
         const uint32_t n;
         const double a;
         const UniversalBuffer & x_buffer;

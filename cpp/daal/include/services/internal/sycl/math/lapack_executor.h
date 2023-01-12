@@ -59,7 +59,7 @@ class PotrfExecutor
 private:
     struct Execute
     {
-        cl::sycl::queue & queue;
+        sycl::queue & queue;
         const math::UpLo uplo;
         const size_t n;
         UniversalBuffer & a_buffer;
@@ -103,7 +103,7 @@ class PotrsExecutor
 private:
     struct Execute
     {
-        cl::sycl::queue & queue;
+        sycl::queue & queue;
         const math::UpLo uplo;
         const size_t n;
         const size_t ny;

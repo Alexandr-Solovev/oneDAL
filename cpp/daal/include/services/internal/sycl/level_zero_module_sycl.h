@@ -163,7 +163,7 @@ private:
         desc.pNext        = nullptr;
 
         DAAL_CHECK_LEVEL_ZERO(_zeModuleCreateF(cl::sycl::get_native<cl::sycl::backend::ext_oneapi_level_zero>(deviceQueue.get_context()),
-                                               cl::sycl::get_native<cl::sycl::backend::ext_oneapi_level_zero>(deviceQueue.get_device()), &desc,
+                                               sycl::get_native<cl::sycl::backend::ext_oneapi_level_zero>(deviceQueue.get_device()), &desc,
                                                &_moduleLevelZero, nullptr),
                               status);
     }

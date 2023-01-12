@@ -64,7 +64,7 @@ NumericTablePtr computeCorrelationMatrix(const NumericTablePtr &table) {
 
 /* Fill the buffer with pseudo random numbers generated with MinStd engine */
 cl::sycl::event generateData(cl::sycl::queue &q, float *deviceData, size_t nRows, size_t nCols) {
-    using namespace cl::sycl;
+    using namespace sycl;
     return q.submit([&](handler &cgh) {
         cgh.parallel_for<class FillTable>(range<1>(nRows), [=](id<1> idx) {
             constexpr float genMax = 2147483647.0f;
@@ -90,7 +90,7 @@ int main(int argc, char *argv[]) {
         std::cout << "Running on " << deviceName << std::endl << std::endl;
 
         /* Crate SYCL* queue with desired device */
-        cl::sycl::queue queue{ device };
+        sycl::queue queue{ device };
 
         /* Set the queue to default execution context */
         Environment::getInstance()->setDefaultExecutionContext(SyclExecutionContext{ queue });
@@ -118,7 +118,7 @@ int main(int argc, char *argv[]) {
         printNumericTable(covariance, "Covariance matrix:");
 
         /* Free USM data */
-        cl::sycl::free(dataDevice, queue.get_context());
+        sycl::free(dataDevice, queue.get_context());
     }
 
     return 0;
