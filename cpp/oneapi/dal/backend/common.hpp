@@ -408,6 +408,8 @@ inline std::int64_t device_max_wg_size(const sycl::queue& q) {
 inline std::int64_t device_max_sg_size(const sycl::queue& q) {
     const std::vector<std::size_t> sg_sizes =
         q.get_device().template get_info<sycl::info::device::sub_group_sizes>();
+    std::cout<<"haha"<<std::endl;
+    std::cout<<sg_sizes.size()<<std::endl;
     auto result_iter = std::max_element(sg_sizes.begin(), sg_sizes.end());
     ONEDAL_ASSERT(result_iter != sg_sizes.end());
     return dal::detail::integral_cast<std::int64_t>(*result_iter);
