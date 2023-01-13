@@ -249,9 +249,11 @@ void train_kernel_hist_impl<Float, Bin, Index, Task>::init_params(train_context_
     // define number of trees which can be built in parallel
     const std::uint64_t device_global_mem_size =
         queue_.get_device().get_info<sycl::info::device::global_mem_size>();
+    std::cout<<"device_global_mem_size"<<std::endl;    
     std::cout<<device_global_mem_size<<std::endl;
     const std::uint64_t device_max_mem_alloc_size =
         queue_.get_device().get_info<sycl::info::device::max_mem_alloc_size>();
+    std::cout<<"device_max_mem_alloc_size"<<std::endl;    
     std::cout<<device_max_mem_alloc_size<<std::endl;
     Index hist_prop_count = 0;
     if constexpr (std::is_same_v<task::classification, Task>) {
