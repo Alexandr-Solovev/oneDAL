@@ -2354,6 +2354,7 @@ sycl::event train_kernel_hist_impl<Float, Bin, Index, Task>::do_node_split(
     const kernel_context<Float, Index, Task> krn_ctx(ctx);
 
     auto local_size = bk::device_max_sg_size(queue_);
+    std::cout<<local_size<<std::endl;
     const sycl::nd_range<1> nd_range = bk::make_multiple_nd_range_1d(local_size, local_size);
 
     auto event = queue_.submit([&](sycl::handler& cgh) {
