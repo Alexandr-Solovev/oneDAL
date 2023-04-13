@@ -21,6 +21,8 @@
 #include "oneapi/dal/backend/primitives/sort/sort.hpp"
 #include "oneapi/dal/detail/profiler.hpp"
 
+#include <iostream>
+
 namespace oneapi::dal::kmeans::backend {
 
 #ifdef ONEDAL_DATA_PARALLEL
@@ -104,6 +106,7 @@ std::int64_t kernels_fp<Float>::get_part_count_for_partial_centroids(sycl::queue
                                                                      std::int64_t column_count,
                                                                      std::int64_t cluster_count) {
     // TODO optimization
+    std::cout<<"step 35"<<std::endl;
     const std::int64_t block_size_in_bytes = get_max_block_size_in_bytes(queue);
     std::int64_t part_count = 128; // Number of partial centroids. Reasonable initial guess.
     dal::detail::check_mul_overflow(cluster_count, column_count);
@@ -111,6 +114,7 @@ std::int64_t kernels_fp<Float>::get_part_count_for_partial_centroids(sycl::queue
     std::int64_t fp_size = dal::detail::get_data_type_size(dal::detail::make_data_type<Float>());
     dal::detail::check_mul_overflow(cluster_count * column_count * part_count, fp_size);
     const std::int64_t part_size = cluster_count * column_count * fp_size;
+    std::cout<<"step 36"<<std::endl;
     while (part_count * part_size > block_size_in_bytes / 2) {
         part_count /= 2;
     }
@@ -131,25 +135,25 @@ sycl::event kernels_fp<Float>::select(sycl::queue& queue,
     ONEDAL_ASSERT(selection.get_dimension(0) == distances.get_dimension(0));
     ONEDAL_ASSERT(selection.get_dimension(1) == 1);
     ONEDAL_ASSERT(centroid_squares.get_dimension(0) == distances.get_dimension(1));
-
+    std::cout<<"step 38"<<std::endl;
     const std::int64_t cluster_count = distances.get_dimension(1);
     const std::int64_t row_count = distances.get_dimension(0);
     const std::int64_t stride = distances.get_dimension(1);
 
     const std::int64_t cluster_count_as_int32 =
         dal::detail::integral_cast<std::int32_t>(cluster_count);
-
+    std::cout<<"step 39"<<std::endl;
     const std::int64_t preffered_wg_size = bk::device_max_wg_size(queue);
     const std::int64_t wg_size =
         bk::get_scaled_wg_size_per_row(queue, cluster_count, preffered_wg_size);
     dal::detail::check_mul_overflow(wg_size, stride);
-
+    std::cout<<"step 40"<<std::endl;
     const Float* distances_ptr = distances.get_data();
     const Float* centroid_squares_ptr = centroid_squares.get_data();
     Float* selection_ptr = selection.get_mutable_data();
     std::int32_t* indices_ptr = indices.get_mutable_data();
     const auto fp_max = dal::detail::limits<Float>::max();
-
+    std::cout<<"step 41"<<std::endl;
     auto event = queue.submit([&](sycl::handler& cgh) {
         cgh.depends_on(deps);
         cgh.parallel_for<select_min_distance<Float>>(
@@ -226,6 +230,7 @@ sycl::event kernels_fp<Float>::assign_clusters(sycl::queue& queue,
     const auto row_count = data.get_dimension(0);
     const auto column_count = data.get_dimension(1);
     const auto centroid_count = centroids.get_dimension(0);
+    std::cout<<"step 42"<<std::endl;
     auto block_count = row_count / block_size_in_rows + bool(row_count % block_size_in_rows);
     for (std::int64_t iblock = 0; iblock < block_count; iblock++) {
         const auto row_offset = block_size_in_rows * iblock;
@@ -280,7 +285,7 @@ sycl::event kernels_fp<Float>::merge_reduce_centroids(sycl::queue& queue,
     const auto column_count = centroids.get_dimension(1);
     const auto cluster_count = centroids.get_dimension(0);
     const auto sg_size_to_set = get_gpu_sg_size(queue);
-
+    std::cout<<"step 43"<<std::endl;
     return queue.submit([&](sycl::handler& cgh) {
         cgh.depends_on(deps);
         cgh.parallel_for<centroid_merge<Float>>(
@@ -331,6 +336,7 @@ sycl::event kernels_fp<Float>::partial_reduce_centroids(
     const Float* data_ptr = data.get_data();
     const std::int32_t* response_ptr = responses.get_data();
     Float* partial_centroids_ptr = partial_centroids.get_mutable_data();
+    std::cout<<"step 45"<<std::endl;
     const auto row_count = data.get_dimension(0);
     const auto column_count = data.get_dimension(1);
     const auto sg_size_to_set = get_recommended_sg_size(queue);
@@ -377,6 +383,7 @@ sycl::event kernels_fp<Float>::compute_objective_function(
     const Float* distance_ptr = closest_distances.get_data();
     Float* value_ptr = objective_function.get_mutable_data();
     const auto row_count = closest_distances.get_dimension(0);
+    std::cout<<"step 46"<<std::endl;
     const auto sg_size_to_set = get_recommended_sg_size(queue);
     return queue.submit([&](sycl::handler& cgh) {
         cgh.depends_on(deps);
@@ -414,7 +421,7 @@ sycl::event kernels_fp<Float>::compute_squares(sycl::queue& queue,
     const std::int64_t row_count = data.get_dimension(0);
     const std::int64_t column_count = data.get_dimension(1);
     const std::int64_t wg_size = bk::device_max_sg_size(queue);
-
+    std::cout<<"step 47"<<std::endl;
     return queue.submit([&](sycl::handler& cgh) {
         cgh.depends_on(deps);
         cgh.parallel_for(
@@ -450,7 +457,7 @@ sycl::event kernels_fp<Float>::complete_closest_distances(sycl::queue& queue,
     ONEDAL_PROFILER_TASK(complete_closest_distances, queue);
     ONEDAL_ASSERT(data_squares.get_dimension(0) == closest_distances.get_dimension(0));
     ONEDAL_ASSERT(closest_distances.get_dimension(1) == 1);
-
+    std::cout<<"step 50"<<std::endl;
     const auto elem_count = closest_distances.get_dimension(0);
     auto values_ptr = closest_distances.get_mutable_data();
     const auto squares_ptr = data_squares.get_data();

@@ -19,6 +19,7 @@
 #include "oneapi/dal/algo/kmeans/backend/gpu/kernels_integral.hpp"
 #include "oneapi/dal/algo/kmeans/backend/gpu/kernels_fp.hpp"
 #include "oneapi/dal/algo/kmeans/backend/gpu/empty_cluster_handling.hpp"
+#include <iostream>
 
 namespace oneapi::dal::kmeans::backend {
 
@@ -97,8 +98,9 @@ public:
         ONEDAL_ASSERT(objective_function.get_dimension(0) == 1);
         ONEDAL_ASSERT(centroids.get_dimension(0) == cluster_count_);
         ONEDAL_ASSERT(centroids.get_dimension(1) == column_count_);
-
+        std::cout<<"step 1"<<std::endl;
         const auto block_size_in_rows = distance_block.get_dimension(0);
+        std::cout<<"step 2"<<std::endl;
         auto assign_event = kernels_fp_t::assign_clusters( //
             queue_,
             data_,
@@ -110,19 +112,20 @@ public:
             distance_block,
             closest_distances,
             deps);
-
+        std::cout<<"step 3"<<std::endl;
         auto count_event =
             count_clusters(queue_, responses, cluster_count_, counters_, { assign_event });
 
         auto count_reduce_event = comm_.allreduce(counters_.flatten(queue_, { count_event }));
-
+        std::cout<<"step 4"<<std::endl;
         auto objective_function_event = kernels_fp_t::compute_objective_function( //
             queue_,
             closest_distances,
             objective_function,
             { assign_event });
-
+        std::cout<<"step 5"<<std::endl;
         auto reset_event = partial_centroids_.fill(queue_, 0.0);
+        std::cout<<"step 6"<<std::endl;
         auto centroids_event = kernels_fp_t::partial_reduce_centroids( //
             queue_,
             data_,
@@ -133,14 +136,15 @@ public:
             { assign_event, reset_event });
 
         objective_function_event.wait_and_throw();
+        std::cout<<"step 7"<<std::endl;
         Float objective_function_value = objective_function.to_host(queue_).get_data()[0];
 
         auto objective_reduce_event = comm_.allreduce(objective_function_value);
-
+        std::cout<<"step 8"<<std::endl;
         // Counters are needed in the `merge_reduce_centroids` function,
         // we wait until cross-rank reduction is finished
         count_reduce_event.wait();
-
+        std::cout<<"step 9"<<std::endl;
         centroids_event = kernels_fp_t::merge_reduce_centroids( //
             queue_,
             counters_,
@@ -154,12 +158,12 @@ public:
 
         const std::int64_t empty_cluster_count =
             count_empty_clusters(queue_, cluster_count_, counters_, { count_event });
-
+        std::cout<<"step 10"<<std::endl;
         // Centroids and objective function are needed in the `handle_empty_clusters`,
         // we wait until cross-rank reduction is finished
         centroids_reduce_event.wait();
         objective_reduce_event.wait();
-
+        std::cout<<"step 11"<<std::endl;
         if (empty_cluster_count > 0) {
             auto [correction, event] = handle_empty_clusters( //
                 queue_,
@@ -174,7 +178,7 @@ public:
             event.wait_and_throw();
             objective_function_value += correction;
         }
-
+        std::cout<<"step 12"<<std::endl;
         return { objective_function_value, centroids_event };
     }
 

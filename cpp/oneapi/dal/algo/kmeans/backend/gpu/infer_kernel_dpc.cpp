@@ -20,6 +20,7 @@
 #include "oneapi/dal/algo/kmeans/backend/gpu/kernels_integral.hpp"
 #include "oneapi/dal/algo/kmeans/backend/gpu/kernels_fp.hpp"
 #include "oneapi/dal/table/row_accessor.hpp"
+#include <iostream>
 
 #include "oneapi/dal/detail/profiler.hpp"
 
@@ -41,7 +42,7 @@ struct infer_kernel_gpu<Float, method::lloyd_dense, task::clustering> {
         const std::int64_t row_count = data.get_row_count();
         const std::int64_t column_count = data.get_column_count();
         const std::int64_t cluster_count = params.get_cluster_count();
-
+         std::cout<<"step 30"<<std::endl;
         auto arr_data = pr::table2ndarray<Float>(queue, data, sycl::usm::alloc::device);
         auto arr_centroids = pr::table2ndarray<Float>(queue,
                                                       input.get_model().get_centroids(),
@@ -69,7 +70,7 @@ struct infer_kernel_gpu<Float, method::lloyd_dense, task::clustering> {
             pr::ndarray<std::int32_t, 2>::empty(queue, { row_count, 1 }, sycl::usm::alloc::device);
         auto arr_objective_function =
             pr::ndarray<Float, 1>::empty(queue, 1, sycl::usm::alloc::device);
-
+        std::cout<<"step 31"<<std::endl;
         auto assign_event =
             kernels_fp<Float>::assign_clusters(queue,
                                                arr_data,
@@ -86,7 +87,7 @@ struct infer_kernel_gpu<Float, method::lloyd_dense, task::clustering> {
                                                       arr_objective_function,
                                                       { assign_event })
             .wait_and_throw();
-
+        std::cout<<"step 32"<<std::endl;
         return infer_result<task::clustering>()
             .set_responses(dal::homogen_table::wrap(arr_responses.flatten(queue), row_count, 1))
             .set_objective_function_value(

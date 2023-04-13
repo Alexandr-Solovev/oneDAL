@@ -29,6 +29,8 @@
 #include "oneapi/dal/backend/interop/error_converter.hpp"
 #include "oneapi/dal/backend/interop/table_conversion.hpp"
 
+#include <iostream>
+
 #include "oneapi/dal/detail/profiler.hpp"
 
 namespace oneapi::dal::kmeans::backend {
@@ -54,7 +56,7 @@ static pr::ndarray<Float, 2> get_initial_centroids(const dal::backend::context_g
     interop::execution_context_guard guard(queue);
 
     const auto data = input.get_data();
-
+    std::cout<<"step 52"<<std::endl;
     const std::int64_t column_count = data.get_column_count();
     const std::int64_t cluster_count = params.get_cluster_count();
 
@@ -116,7 +118,7 @@ struct train_kernel_gpu<Float, method::lloyd_dense, task::clustering> {
         const std::int64_t max_iteration_count = params.get_max_iteration_count();
         const double accuracy_threshold = params.get_accuracy_threshold();
         dal::detail::check_mul_overflow(cluster_count, column_count);
-
+        std::cout<<"step 53"<<std::endl;
         auto data_ptr =
             row_accessor<const Float>(data).pull(queue, { 0, -1 }, sycl::usm::alloc::device);
         auto arr_data = pr::ndarray<Float, 2>::wrap(data_ptr, { row_count, column_count });
@@ -162,7 +164,7 @@ struct train_kernel_gpu<Float, method::lloyd_dense, task::clustering> {
         Float prev_objective_function = de::limits<Float>::max();
         std::int64_t iter;
         sycl::event centroids_event;
-
+        std::cout<<"step 54"<<std::endl;
         auto updater = cluster_updater<Float>{ queue, comm }
                            .set_cluster_count(cluster_count)
                            .set_part_count(part_count)
@@ -192,6 +194,7 @@ struct train_kernel_gpu<Float, method::lloyd_dense, task::clustering> {
             }
             prev_objective_function = objective_function;
         }
+        std::cout<<"step 55"<<std::endl;
         auto centroid_squares_event = kernels_fp<Float>::compute_squares(queue,
                                                                          arr_centroids,
                                                                          arr_centroid_squares,

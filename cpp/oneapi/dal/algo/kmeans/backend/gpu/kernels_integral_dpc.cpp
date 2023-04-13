@@ -21,6 +21,8 @@
 #include "oneapi/dal/backend/primitives/sort/sort.hpp"
 #include "oneapi/dal/detail/profiler.hpp"
 
+#include <iostream>
+
 namespace oneapi::dal::kmeans::backend {
 
 #ifdef ONEDAL_DATA_PARALLEL
@@ -114,7 +116,7 @@ std::int64_t count_empty_clusters(sycl::queue& queue,
     ONEDAL_ASSERT(counters.get_dimension(0) == cluster_count);
     ONEDAL_ASSERT(cluster_count <= dal::detail::limits<std::int32_t>::max());
     ONEDAL_ASSERT(cluster_count > 0);
-
+    std::cout<<"step 51"<<std::endl;
     auto empty_cluster_count =
         pr::ndarray<std::int32_t, 1>::empty(queue, { 1 }, sycl::usm::alloc::device);
 

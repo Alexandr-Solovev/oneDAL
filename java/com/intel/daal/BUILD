@@ -40,18 +40,18 @@ daal_jni_dynamic_lib(
     ]
 )
 
-# daal_jar(
-#     name = "jar",
-#     lib_name = "daal",
-#     deps = [
-#         ":services_java",
-#     ],
-# )
+daal_jar(
+    name = "jar",
+    lib_name = "daal",
+    deps = [
+        ":services_java",
+    ],
+)
 
-# daal_dynamic_lib(
-#     name = "jni",
-#     lib_name = "JavaAPI",
-#     deps = [
-#         ":services_cc",
-#     ],
-# )
+daal_dynamic_lib(
+    name = "jni",
+    lib_name = "JavaAPI",
+    deps = [
+        ":services_cc",
+    ],
+)

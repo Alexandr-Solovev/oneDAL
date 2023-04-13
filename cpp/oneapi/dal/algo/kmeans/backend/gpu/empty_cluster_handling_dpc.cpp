@@ -17,6 +17,7 @@
 #include "oneapi/dal/algo/kmeans/backend/gpu/empty_cluster_handling.hpp"
 #include "oneapi/dal/backend/primitives/sort/sort.hpp"
 #include "oneapi/dal/detail/profiler.hpp"
+#include <iostream>
 
 namespace spmd = oneapi::dal::preview::spmd;
 
@@ -40,13 +41,13 @@ static auto fill_candidate_indices_and_distances(sycl::queue& queue,
     const std::int64_t elem_count = closest_distances.get_dimension(0);
     auto indices = pr::ndarray<std::int32_t, 1>::empty(queue, { elem_count }, alloc);
     auto values = pr::ndarray<Float, 1>::empty(queue, { elem_count }, alloc);
-
+    std::cout<<"step 13"<<std::endl;
     const Float* closest_distances_ptr = closest_distances.get_data();
     std::int32_t* indices_ptr = indices.get_mutable_data();
     std::int32_t* candidate_indices_ptr = candidate_indices.get_mutable_data();
     Float* values_ptr = values.get_mutable_data();
     Float* candidate_distances_ptr = candidate_distances.get_mutable_data();
-
+    std::cout<<"step 14"<<std::endl;
     auto fill_event = queue.submit([&](sycl::handler& cgh) {
         cgh.depends_on(deps);
         cgh.parallel_for(bk::make_range_1d(elem_count), [=](sycl::id<1> idx) {
@@ -54,10 +55,10 @@ static auto fill_candidate_indices_and_distances(sycl::queue& queue,
             values_ptr[idx] = -closest_distances_ptr[idx];
         });
     });
-
+    std::cout<<"step 15"<<std::endl;
     pr::radix_sort_indices_inplace<Float, std::int32_t> radix_sort{ queue };
     auto sort_event = radix_sort(values, indices, { fill_event });
-
+    std::cout<<"step 16"<<std::endl;
     auto copy_event = queue.submit([&](sycl::handler& cgh) {
         cgh.depends_on(sort_event);
         cgh.parallel_for(bk::make_range_1d(candidate_count), [=](sycl::id<1> idx) {
@@ -65,7 +66,7 @@ static auto fill_candidate_indices_and_distances(sycl::queue& queue,
             candidate_indices_ptr[idx] = indices_ptr[idx];
         });
     });
-
+    std::cout<<"step 17"<<std::endl;
     // We need to wait as `indices` and `values` will be deallocated
     // as we leave scope of the function
     copy_event.wait_and_throw();
@@ -88,10 +89,10 @@ static auto fill_empty_cluster_indices(sycl::queue& queue,
 
     const auto host_counters = counters.to_host(queue);
     const auto host_empty_cluster_indices = bk::make_unique_host<std::int32_t>(candidate_count);
-
+    std::cout<<"step 18"<<std::endl;
     const std::int32_t* host_counters_ptr = host_counters.get_data();
     std::int32_t* host_empty_cluster_indices_ptr = host_empty_cluster_indices.get();
-
+    std::cout<<"step 19"<<std::endl;
     std::int64_t counter = 0;
     for (std::int64_t i = 0; i < cluster_count; i++) {
         if (host_counters_ptr[i] > 0) {
@@ -101,7 +102,7 @@ static auto fill_empty_cluster_indices(sycl::queue& queue,
         host_empty_cluster_indices_ptr[counter] = i;
         counter++;
     }
-
+    std::cout<<"step 19"<<std::endl;
     // We have to wait as `host_counters` will be deleted once we leave scope of the function
     dal::backend::copy_host2usm(queue,
                                 empty_cluster_indices.get_mutable_data(),
@@ -125,13 +126,13 @@ static auto copy_candidates_from_data(sycl::queue& queue,
 
     const std::int64_t candidate_count = candidates.get_candidate_count();
     const std::int64_t column_count = centroids.get_dimension(1);
-
+    std::cout<<"step 20"<<std::endl;
     const Float* data_ptr = data.get_data();
     Float* centroids_ptr = centroids.get_mutable_data();
     const std::int32_t* candidate_indices_ptr = candidates.get_indices().get_data();
     const std::int32_t* empty_cluster_indices_ptr =
         candidates.get_empty_cluster_indices().get_data();
-
+    std::cout<<"step 21"<<std::endl;
     auto event = queue.submit([&](sycl::handler& cgh) {
         cgh.depends_on(deps);
 
@@ -160,11 +161,11 @@ static auto gather_candidates(sycl::queue& queue,
 
     const std::int64_t column_count = data.get_dimension(1);
     const std::int64_t candidate_count = candidates.get_candidate_count();
-
+     std::cout<<"step 22"<<std::endl;
     const Float* data_ptr = data.get_data();
     const std::int32_t* candidate_indices_ptr = candidates.get_indices().get_data();
     Float* gathered_candidates_ptr = gathered_candidates.get_mutable_data();
-
+     std::cout<<"step 23"<<std::endl;
     auto event = queue.submit([&](sycl::handler& cgh) {
         cgh.depends_on(deps);
 
@@ -368,7 +369,7 @@ auto find_candidates(sycl::queue& queue,
     ONEDAL_ASSERT(closest_distances.get_dimension(0) >= candidate_count);
     ONEDAL_ASSERT(closest_distances.get_dimension(1) == 1);
     ONEDAL_ASSERT(counters.get_dimension(0) >= candidate_count);
-
+     std::cout<<"step 24"<<std::endl;
     constexpr auto alloc = sycl::usm::alloc::device;
     const auto shape = pr::ndshape<1>{ candidate_count };
     auto candidate_indices = pr::ndarray<std::int32_t, 1>::empty(queue, shape, alloc);
@@ -389,7 +390,7 @@ auto find_candidates(sycl::queue& queue,
                                    counters,
                                    empty_cluster_indices,
                                    { fill_indices_and_distances_event });
-
+     std::cout<<"step 25"<<std::endl;
     centroid_candidates<Float> candidates{ candidate_indices,
                                            candidate_distances,
                                            empty_cluster_indices };
