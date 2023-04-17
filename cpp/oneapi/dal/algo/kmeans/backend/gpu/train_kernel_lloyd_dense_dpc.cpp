@@ -157,7 +157,7 @@ struct train_kernel_gpu<Float, method::lloyd_dense, task::clustering> {
                                                           { cluster_count, column_count },
                                                           sycl::usm::alloc::device);
         auto arr_responses =
-            pr::ndarray<std::int32_t, 2>::empty(queue, { row_count, 1 }, sycl::usm::alloc::device);
+            pr::ndarray<std::int64_t, 2>::empty(queue, { row_count, 1 }, sycl::usm::alloc::device);
         auto arr_objective_function =
             pr::ndarray<Float, 1>::empty(queue, 1, sycl::usm::alloc::device);
 

@@ -45,7 +45,7 @@ struct partial_counters {};
 struct merge_counters {};
 
 sycl::event count_clusters(sycl::queue& queue,
-                           const pr::ndview<std::int32_t, 2>& responses,
+                           const pr::ndview<std::int64_t, 2>& responses,
                            std::int64_t cluster_count,
                            pr::ndview<std::int32_t, 1>& counters,
                            const bk::event_vector& deps) {
@@ -53,12 +53,12 @@ sycl::event count_clusters(sycl::queue& queue,
     ONEDAL_ASSERT(counters.get_dimension(0) == cluster_count);
     ONEDAL_ASSERT(responses.get_dimension(1) == 1);
     ONEDAL_ASSERT(cluster_count <= dal::detail::limits<std::int32_t>::max());
-    ONEDAL_ASSERT(responses.get_dimension(0) <= dal::detail::limits<std::int32_t>::max());
+    ONEDAL_ASSERT(responses.get_dimension(0) <= dal::detail::limits<std::int64_t>::max());
     ONEDAL_ASSERT(cluster_count > 0);
 
     const auto row_count = responses.get_dimension(0);
 
-    const std::int32_t* response_ptr = responses.get_data();
+    const std::int64_t* response_ptr = responses.get_data();
     std::int32_t* counter_ptr = counters.get_mutable_data();
 
     auto fill_event = queue.submit([&](sycl::handler& cgh) {

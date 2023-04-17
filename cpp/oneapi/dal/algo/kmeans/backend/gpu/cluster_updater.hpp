@@ -84,7 +84,7 @@ public:
                 pr::ndarray<Float, 2>& distance_block,
                 pr::ndarray<Float, 2>& closest_distances,
                 pr::ndarray<Float, 1>& objective_function,
-                pr::ndarray<std::int32_t, 2>& responses,
+                pr::ndarray<std::int64_t, 2>& responses,
                 const bk::event_vector& deps = {}) -> std::tuple<Float, sycl::event> {
         ONEDAL_ASSERT(data_.get_dimension(0) == row_count_);
         ONEDAL_ASSERT(data_.get_dimension(1) == column_count_);

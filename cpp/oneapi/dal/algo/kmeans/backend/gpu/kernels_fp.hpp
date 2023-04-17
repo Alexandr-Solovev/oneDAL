@@ -39,7 +39,7 @@ struct kernels_fp {
                               const pr::ndview<Float, 2>& data,
                               const pr::ndview<Float, 1>& centroid_squares,
                               pr::ndview<Float, 2>& selection,
-                              pr::ndview<std::int32_t, 2>& indices,
+                              pr::ndview<std::int64_t, 2>& indices,
                               const bk::event_vector& deps = {});
     static sycl::event assign_clusters(sycl::queue& queue,
                                        const pr::ndview<Float, 2>& data,
@@ -47,7 +47,7 @@ struct kernels_fp {
                                        const pr::ndview<Float, 1>& data_squares,
                                        const pr::ndview<Float, 1>& centroid_squares,
                                        std::int64_t block_size_in_rows,
-                                       pr::ndview<std::int32_t, 2>& responses,
+                                       pr::ndview<std::int64_t, 2>& responses,
                                        pr::ndview<Float, 2>& distances,
                                        pr::ndview<Float, 2>& closest_distances,
                                        const bk::event_vector& deps = {});
@@ -58,7 +58,7 @@ struct kernels_fp {
         const pr::ndarray<std::int32_t, 1>& candidate_indices,
         const pr::ndarray<Float, 1>& candidate_distances,
         pr::ndview<Float, 2>& centroids,
-        pr::ndarray<std::int32_t, 2>& responses,
+        pr::ndarray<std::int64_t, 2>& responses,
         Float objective_function,
         const bk::event_vector& deps = {});
     static sycl::event find_candidates(sycl::queue& queue,
@@ -75,7 +75,7 @@ struct kernels_fp {
                                               const bk::event_vector& deps = {});
     static sycl::event partial_reduce_centroids(sycl::queue& queue,
                                                 const pr::ndview<Float, 2>& data,
-                                                const pr::ndview<std::int32_t, 2>& responses,
+                                                const pr::ndview<std::int64_t, 2>& responses,
                                                 std::int64_t cluster_count,
                                                 std::int64_t part_count,
                                                 pr::ndview<Float, 2>& partial_centroids,

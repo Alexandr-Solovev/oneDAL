@@ -135,7 +135,7 @@ public:
                 tol);
     }
 
-    void run_counting(const pr::ndarray<std::int32_t, 2>& responses, std::int64_t cluster_count) {
+    void run_counting(const pr::ndarray<std::int64_t, 2>& responses, std::int64_t cluster_count) {
         auto [counters, counters_event] = pr::ndarray<std::int32_t, 1>::zeros( //
             this->get_queue(),
             { cluster_count },
@@ -151,7 +151,7 @@ public:
     }
 
     void run_partial_reduce(const pr::ndarray<float_t, 2>& data,
-                            const pr::ndarray<std::int32_t, 2>& responses,
+                            const pr::ndarray<std::int64_t, 2>& responses,
                             std::int64_t cluster_count,
                             std::int64_t part_count,
                             float_t tol = 1.0e-5) {
@@ -191,7 +191,7 @@ public:
     }
 
     void run_reduce_centroids(const pr::ndarray<float_t, 2>& data,
-                              const pr::ndarray<std::int32_t, 2>& responses,
+                              const pr::ndarray<std::int64_t, 2>& responses,
                               std::int64_t cluster_count,
                               std::int64_t part_count,
                               float_t tol = 1.0e-5) {
@@ -244,7 +244,7 @@ public:
         const std::int64_t row_count = data.get_dimension(0);
         const std::int64_t cluster_count = centroids.get_dimension(0);
 
-        auto responses = pr::ndarray<std::int32_t, 2>::empty( //
+        auto responses = pr::ndarray<std::int64_t, 2>::empty( //
             this->get_queue(),
             { row_count, 1 },
             sycl::usm::alloc::device);
@@ -285,7 +285,7 @@ public:
 
     void check_assignments(const pr::ndarray<float_t, 2>& data,
                            const pr::ndarray<float_t, 2>& centroids,
-                           const pr::ndarray<std::int32_t, 2>& responses,
+                           const pr::ndarray<std::int64_t, 2>& responses,
                            const pr::ndarray<float_t, 2>& closest_distances,
                            float_t tol) {
         const std::int64_t row_count = data.get_dimension(0);
@@ -330,7 +330,7 @@ public:
         }
     }
 
-    void check_counters(const pr::ndarray<std::int32_t, 2>& responses,
+    void check_counters(const pr::ndarray<std::int64_t, 2>& responses,
                         const pr::ndarray<std::int32_t, 1>& counters,
                         std::int32_t cluster_count,
                         std::int32_t empty_cluster_count) {
@@ -364,7 +364,7 @@ public:
     }
 
     void check_partial_centroids(const pr::ndarray<float_t, 2>& data,
-                                 const pr::ndarray<std::int32_t, 2>& responses,
+                                 const pr::ndarray<std::int64_t, 2>& responses,
                                  const pr::ndarray<float_t, 2>& partial_centroids,
                                  std::int64_t part_count,
                                  float_t tol) {
@@ -414,7 +414,7 @@ public:
     }
 
     void check_reduced_centroids(const pr::ndarray<float_t, 2>& data,
-                                 const pr::ndarray<std::int32_t, 2>& responses,
+                                 const pr::ndarray<std::int64_t, 2>& responses,
                                  const pr::ndarray<float_t, 2>& centroids,
                                  const pr::ndarray<std::int32_t, 1>& counters,
                                  float_t tol) {
@@ -510,7 +510,7 @@ TEMPLATE_LIST_TEST_M(cluster_updater_test, "partial reduction", "[reduction]", k
         this->template make_uniform<2>({ row_count, column_count }, -0.9, 1.7);
 
     const auto responses = //
-        this->template make_uniform_int<std::int32_t, 2>({ row_count, 1 }, 0, cluster_count - 1);
+        this->template make_uniform_int<std::int64_t, 2>({ row_count, 1 }, 0, cluster_count - 1);
 
     this->run_partial_reduce(data, responses, cluster_count, part_count);
 }
@@ -527,7 +527,7 @@ TEMPLATE_LIST_TEST_M(cluster_updater_test, "centroid reduction", "[reduction]", 
         this->template make_uniform<2>({ row_count, column_count }, -0.9, 1.7);
 
     const auto responses = //
-        this->template make_uniform_int<std::int32_t, 2>({ row_count, 1 }, 0, cluster_count - 1);
+        this->template make_uniform_int<std::int64_t, 2>({ row_count, 1 }, 0, cluster_count - 1);
 
     this->run_reduce_centroids(data, responses, cluster_count, part_count);
 }
