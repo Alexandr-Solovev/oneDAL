@@ -255,12 +255,14 @@ sycl::event kernels_fp<Float>::assign_clusters(sycl::queue& queue,
                                       Float(0.0),
                                       { selection_event });
         }
+        std::cout<<"step aaa1"<<std::endl;
         auto response_block =
             pr::ndview<std::int64_t, 2>::wrap(responses.get_mutable_data() + row_offset,
                                               { cur_rows, 1 });
         auto closest_distance_block =
             pr::ndview<Float, 2>::wrap(closest_distances.get_mutable_data() + row_offset,
                                        { cur_rows, 1 });
+        std::cout<<"step aaa2"<<std::endl;
         selection_event = select(queue,
                                  distance_block,
                                  centroid_squares,
