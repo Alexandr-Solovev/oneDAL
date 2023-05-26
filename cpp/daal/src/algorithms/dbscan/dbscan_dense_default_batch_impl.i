@@ -208,15 +208,15 @@ Status DBSCANBatchKernel<algorithmFPType, method, cpu>::computeNoMemSave(const N
                                                                          const Parameter * par)
 {
     Status s;
-    const size_t nRows = ntData->getNumberOfRows();
+    const size_t nRows                                        = ntData->getNumberOfRows();
     services::internal::sycl::ExecutionContextIface & context = services::internal::getDefaultContext();
     BlockDescriptor<algorithmFPType> sumBlock;
     DAAL_CHECK_STATUS_VAR(s);
-    std::cout<<"before fill"<<std::endl;
+    std::cout << "before fill" << std::endl;
     context.fill(sumBlock.getBuffer(), 0, s);
-    std::cout<<"after fill"<<std::endl;
+    std::cout << "after fill" << std::endl;
     DAAL_CHECK_STATUS_VAR(s);
-    std::cout<<"after status checking"<<std::endl;
+    std::cout << "after status checking" << std::endl;
     const algorithmFPType epsilon         = par->epsilon;
     const algorithmFPType minObservations = par->minObservations;
     const algorithmFPType minkowskiPower  = (algorithmFPType)2.0;
@@ -285,7 +285,7 @@ Status DBSCANBatchKernel<algorithmFPType, method, cpu>::computeNoMemSave(const N
             neighs[i].clear();
         }
     });
-    std::cout<<"here or no?"<<std::endl;
+    std::cout << "here or no?" << std::endl;
     return s;
 }
 

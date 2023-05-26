@@ -265,10 +265,11 @@ public:
         ArrayCopier::copy(_deviceQueue, dest, desOffset, src, srcCount, srcOffset, count, status);
     }
 
-    void fill(UniversalBuffer dest, double value, Status & status) DAAL_C11_OVERRIDE { 
-        
-        std::cout<<"Fill with queue"<<std::endl;
-        BufferFiller::fill(_deviceQueue, dest, value, status); }
+    void fill(UniversalBuffer dest, double value, Status & status) DAAL_C11_OVERRIDE
+    {
+        std::cout << "Fill with queue" << std::endl;
+        BufferFiller::fill(_deviceQueue, dest, value, status);
+    }
 
     ClKernelFactoryIface & getClKernelFactory() DAAL_C11_OVERRIDE { return _kernelFactory; }
 
