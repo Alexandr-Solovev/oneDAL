@@ -21,6 +21,7 @@
 #include "services/error_handling.h"
 #include "services/internal/any.h"
 #include "services/internal/buffer.h"
+#include <iostream>
 #include "services/internal/sycl/types.h"
 #include "services/internal/sycl/math/types.h"
 
@@ -408,7 +409,9 @@ public:
         st |= ErrorMethodNotImplemented;
     }
 
-    void fill(UniversalBuffer /*dest*/, double /*value*/, Status & st) DAAL_C11_OVERRIDE { st |= ErrorMethodNotImplemented; }
+    void fill(UniversalBuffer /*dest*/, double /*value*/, Status & st) DAAL_C11_OVERRIDE {
+        std::cout<<"incorrect fill"<<std::endl;
+         st |= ErrorMethodNotImplemented; }
 
     UniversalBuffer allocate(TypeId /*type*/, size_t /*bufferSize*/, Status & st) DAAL_C11_OVERRIDE
     {

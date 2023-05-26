@@ -27,6 +27,7 @@
 #include <backend/opencl.hpp>
 
 #include "services/daal_string.h"
+#include <iostream>
 #include "services/internal/hash_table.h"
 #include "services/internal/sycl/execution_context.h"
 #include "services/internal/sycl/kernel_scheduler_sycl.h"
@@ -264,7 +265,10 @@ public:
         ArrayCopier::copy(_deviceQueue, dest, desOffset, src, srcCount, srcOffset, count, status);
     }
 
-    void fill(UniversalBuffer dest, double value, Status & status) DAAL_C11_OVERRIDE { BufferFiller::fill(_deviceQueue, dest, value, status); }
+    void fill(UniversalBuffer dest, double value, Status & status) DAAL_C11_OVERRIDE { 
+        
+        std::cout<<"Fill with queue"<<std::endl;
+        BufferFiller::fill(_deviceQueue, dest, value, status); }
 
     ClKernelFactoryIface & getClKernelFactory() DAAL_C11_OVERRIDE { return _kernelFactory; }
 

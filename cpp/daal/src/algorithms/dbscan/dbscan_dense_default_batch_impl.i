@@ -23,7 +23,8 @@
 
 #include "algorithms/algorithm.h"
 #include "data_management/data/numeric_table.h"
-
+#include <iostream>
+#include "src/services/service_data_utils.h"
 #include "algorithms/dbscan/dbscan_types.h"
 #include "src/algorithms/dbscan/dbscan_utils.h"
 
@@ -208,7 +209,14 @@ Status DBSCANBatchKernel<algorithmFPType, method, cpu>::computeNoMemSave(const N
 {
     Status s;
     const size_t nRows = ntData->getNumberOfRows();
-
+    services::internal::sycl::ExecutionContextIface & context = services::internal::getDefaultContext();
+    BlockDescriptor<algorithmFPType> sumBlock;
+    DAAL_CHECK_STATUS_VAR(s);
+    std::cout<<"before fill"<<std::endl;
+    context.fill(sumBlock.getBuffer(), 0, s);
+    std::cout<<"after fill"<<std::endl;
+    DAAL_CHECK_STATUS_VAR(s);
+    std::cout<<"after status checking"<<std::endl;
     const algorithmFPType epsilon         = par->epsilon;
     const algorithmFPType minObservations = par->minObservations;
     const algorithmFPType minkowskiPower  = (algorithmFPType)2.0;
@@ -277,7 +285,7 @@ Status DBSCANBatchKernel<algorithmFPType, method, cpu>::computeNoMemSave(const N
             neighs[i].clear();
         }
     });
-
+    std::cout<<"here or no?"<<std::endl;
     return s;
 }
 
