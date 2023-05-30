@@ -222,20 +222,30 @@ Status DBSCANBatchKernelUCAPI<algorithmFPType>::compute(const NumericTable * x, 
     }
     std::cout<<"in compute step 13"<<std::endl;
     bool foundCluster = false;
+    std::cout<<"in loop step 1.31"<<std::endl;
     DAAL_CHECK_STATUS_VAR(startNextCluster(nClusters, nRows, queueEnd, assignments, foundCluster));
+    std::cout<<"in loop step 1.32"<<std::endl;
     while (foundCluster)
     {
         ++nClusters;
         ++queueEnd;
+        std::cout<<"in loop step 1.33"<<std::endl;
         DAAL_CHECK_STATUS_VAR(setQueueFront(queueEnd));
+        std::cout<<"in loop step 1.34"<<std::endl;
         while (queueBegin < queueEnd)
         {
+            std::cout<<"in loop step 1.35"<<std::endl;
             updateQueue(nClusters - 1, nRows, nFeatures, epsP, queueBegin, queueEnd, data, assignments);
+            std::cout<<"in loop step 1.36"<<std::endl;
             queueBegin = queueEnd;
+            std::cout<<"in loop step 1.37"<<std::endl;
             DAAL_CHECK_STATUS_VAR(getQueueFront(queueEnd));
+            std::cout<<"in loop step 1.38"<<std::endl;
         }
+        std::cout<<"in loop step 3"<<std::endl;
         DAAL_CHECK_STATUS_VAR(startNextCluster(nClusters, nRows, queueEnd, assignments, foundCluster));
     }
+    std::cout<<"in compute step 13.5"<<std::endl;
     DAAL_CHECK_STATUS_VAR(ntData->releaseBlockOfRows(dataRows));
     std::cout<<"in compute step 14"<<std::endl;
     BlockDescriptor<int> nClustersRows;
