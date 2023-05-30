@@ -23,6 +23,7 @@
 #endif
 
 #include "services/internal/sycl/types_utils.h"
+#include <iostream>
 
 /// \cond INTERNAL
 namespace daal
@@ -259,9 +260,11 @@ private:
         Status fillOp(const Buffer<T> & dstBuffer)
         {
             Status status;
+            std::cout<<"in fillop step 1"<<std::endl;
             auto dstPtr = dstBuffer.toUSM(queue, data_management::writeOnly, status);
+            std::cout<<"in fillop step 2"<<std::endl;
             DAAL_CHECK_STATUS_VAR(status);
-
+            std::cout<<"in fillop step 3"<<std::endl;
             return catchSyclExceptions([&]() mutable {
                 auto event = queue.fill(dstPtr.get(), static_cast<T>(value), dstBuffer.size());
                 event.wait_and_throw();
@@ -287,9 +290,11 @@ private:
 public:
     static void fill(::sycl::queue & queue, UniversalBuffer & dest, double value, Status & status)
     {
+        std::cout<<"in fill step 1"<<std::endl;
         DAAL_ASSERT(!dest.empty());
-
+        std::cout<<"in fill step 2"<<std::endl;
         Execute op(queue, dest, value);
+        std::cout<<"in fill step 3"<<std::endl;
         TypeDispatcher::dispatch(dest.type(), op, status);
     }
 };
