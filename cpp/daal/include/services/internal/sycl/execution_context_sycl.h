@@ -117,88 +117,88 @@ public:
 
     KernelPtr getKernel(const char * kernelName, Status & status) DAAL_C11_OVERRIDE
     {
-        std::cout<<"get kernel step 1"<<std::endl;
+        std::cout << "get kernel step 1" << std::endl;
         if (!_currentProgramRef)
         {
             status |= ErrorExecutionContext;
             return KernelPtr();
         }
-        std::cout<<"get kernel step 2"<<std::endl;
+        std::cout << "get kernel step 2" << std::endl;
         String kernelNameStr = kernelName;
-        std::cout<<"get kernel step 3"<<std::endl;
+        std::cout << "get kernel step 3" << std::endl;
         DAAL_CHECK_COND_ERROR(kernelNameStr.c_str(), status, ErrorMemoryAllocationFailed);
-        std::cout<<"get kernel step 4"<<std::endl;
+        std::cout << "get kernel step 4" << std::endl;
         DAAL_CHECK_STATUS_RETURN_IF_FAIL(status, KernelPtr());
-        std::cout<<"get kernel step 5"<<std::endl;
+        std::cout << "get kernel step 5" << std::endl;
         String key = _currentProgramRef->getName();
-        std::cout<<"get kernel step 6"<<std::endl;
+        std::cout << "get kernel step 6" << std::endl;
         DAAL_CHECK_COND_ERROR(key.c_str(), status, ErrorMemoryAllocationFailed);
-        std::cout<<"get kernel step 7"<<std::endl;
+        std::cout << "get kernel step 7" << std::endl;
         DAAL_CHECK_STATUS_RETURN_IF_FAIL(status, KernelPtr());
-        std::cout<<"get kernel step 8"<<std::endl;
+        std::cout << "get kernel step 8" << std::endl;
         key.add(kernelNameStr);
-        std::cout<<"get kernel step 9"<<std::endl;
+        std::cout << "get kernel step 9" << std::endl;
         DAAL_CHECK_COND_ERROR(key.c_str(), status, ErrorMemoryAllocationFailed);
-        std::cout<<"get kernel step 10"<<std::endl;
+        std::cout << "get kernel step 10" << std::endl;
         DAAL_CHECK_STATUS_RETURN_IF_FAIL(status, KernelPtr());
-        std::cout<<"get kernel step 11"<<std::endl;
+        std::cout << "get kernel step 11" << std::endl;
         bool res = kernelHashTable.contain(key, status);
-        std::cout<<"get kernel step 12"<<std::endl;
+        std::cout << "get kernel step 12" << std::endl;
         DAAL_CHECK_STATUS_RETURN_IF_FAIL(status, KernelPtr());
-        std::cout<<"get kernel step 13"<<std::endl;
+        std::cout << "get kernel step 13" << std::endl;
         if (res)
         {
-            std::cout<<"get kernel step 14"<<std::endl;
+            std::cout << "get kernel step 14" << std::endl;
             auto kernel = kernelHashTable.get(key, status);
-            std::cout<<"get kernel step 15"<<std::endl;
+            std::cout << "get kernel step 15" << std::endl;
             DAAL_CHECK_STATUS_RETURN_IF_FAIL(status, KernelPtr());
-            std::cout<<"get kernel step 16"<<std::endl;
+            std::cout << "get kernel step 16" << std::endl;
 
             return kernel;
         }
         else
         {
             KernelPtr kernel;
-            std::cout<<"get kernel step 17"<<std::endl;
+            std::cout << "get kernel step 17" << std::endl;
 #ifndef DAAL_DISABLE_LEVEL_ZERO
             const bool isOpenCLBackendAvailable = !_deviceQueue.get_device().template get_info< ::sycl::info::device::opencl_c_version>().empty();
-            std::cout<<"get kernel step 18"<<std::endl;
+            std::cout << "get kernel step 18" << std::endl;
             if (isOpenCLBackendAvailable)
             {
 #endif // DAAL_DISABLE_LEVEL_ZERO
 
                 // OpenCL branch
-                std::cout<<"get kernel step 19"<<std::endl;
+                std::cout << "get kernel step 19" << std::endl;
                 auto kernelRef = OpenClKernelRef(_currentProgramRef->get(), kernelNameStr, status);
-                std::cout<<"get kernel step 20"<<std::endl;
+                std::cout << "get kernel step 20" << std::endl;
                 DAAL_CHECK_STATUS_RETURN_IF_FAIL(status, KernelPtr());
-                std::cout<<"get kernel step 21"<<std::endl;
+                std::cout << "get kernel step 21" << std::endl;
                 kernel = OpenClKernelNative::create(_executionTarget, *_currentProgramRef, kernelRef, status);
-                std::cout<<"get kernel step 22"<<std::endl;
+                std::cout << "get kernel step 22" << std::endl;
                 DAAL_CHECK_STATUS_RETURN_IF_FAIL(status, KernelPtr());
-                std::cout<<"get kernel step 23"<<std::endl;
+                std::cout << "get kernel step 23" << std::endl;
 
 #ifndef DAAL_DISABLE_LEVEL_ZERO
             }
             else
             {
                 // Level zero branch
-                std::cout<<"get kernel step 24"<<std::endl;
+                std::cout << "get kernel step 24" << std::endl;
                 auto kernelRef = OpenClKernelLevelZeroRef(*_currentProgramRef, kernelNameStr, status);
-                std::cout<<"get kernel step 25"<<std::endl;
+                std::cout << "get kernel step 25" << std::endl;
                 DAAL_CHECK_STATUS_RETURN_IF_FAIL(status, KernelPtr());
-                std::cout<<"get kernel step 26"<<std::endl;
+                std::cout << "get kernel step 26" << std::endl;
                 kernel = OpenClKernelLevelZero::create(_executionTarget, *_currentProgramRef, kernelRef, status);
-                std::cout<<"get kernel step 27"<<std::endl;
+                std::cout << "get kernel step 27" << std::endl;
                 DAAL_CHECK_STATUS_RETURN_IF_FAIL(status, KernelPtr());
-                std::cout<<"get kernel step 28"<<std::endl;
+                std::cout << "get kernel step 28" << std::endl;
             }
 #endif // DAAL_DISABLE_LEVEL_ZERO
-            std::cout<<"get kernel step 29"<<std::endl;
+            std::cout << "get kernel step 29" << std::endl;
             kernelHashTable.add(key, kernel, status);
-            std::cout<<"get kernel step 30"<<std::endl;
+            std::cout << "get kernel step 30" << std::endl;
             DAAL_CHECK_STATUS_RETURN_IF_FAIL(status, KernelPtr());
-            std::cout<<"get kernel step 31"<<std::endl;
+            std::cout << "get kernel step 31" << std::endl;
             return kernel;
         }
     }

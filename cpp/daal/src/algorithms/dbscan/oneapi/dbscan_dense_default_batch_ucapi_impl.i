@@ -163,26 +163,26 @@ Status DBSCANBatchKernelUCAPI<algorithmFPType>::compute(const NumericTable * x, 
                                                         const Parameter * par)
 {
     Status s;
-    std::cout<<"in compute step 1"<<std::endl;
+    std::cout << "in compute step 1" << std::endl;
     auto & context                = Environment::getInstance()->getDefaultExecutionContext();
     const uint32_t minkowskiPower = 2;
     algorithmFPType epsP          = 1.0;
-    std::cout<<"in compute step 2"<<std::endl;
+    std::cout << "in compute step 2" << std::endl;
     for (uint32_t i = 0; i < minkowskiPower; i++) epsP *= par->epsilon;
     DAAL_CHECK((par->minObservations > algorithmFPType(0)) && (par->minObservations < algorithmFPType(maxInt32AsSizeT)),
                services::ErrorIncorrectParameter);
-    std::cout<<"in compute step 3"<<std::endl;
+    std::cout << "in compute step 3" << std::endl;
     NumericTable * const ntData = const_cast<NumericTable *>(x);
     NumericTable * const ntW    = const_cast<NumericTable *>(ntWeights);
-    std::cout<<"in compute step 4"<<std::endl;
+    std::cout << "in compute step 4" << std::endl;
     const size_t nDataRowsAsSizeT    = ntData->getNumberOfRows();
     const size_t nDataColumnsAsSizeT = ntData->getNumberOfColumns();
-    std::cout<<"in compute step 5"<<std::endl;
+    std::cout << "in compute step 5" << std::endl;
     DAAL_OVERFLOW_CHECK_BY_MULTIPLICATION(uint32_t, nDataRowsAsSizeT, nDataColumnsAsSizeT);
 
     DAAL_CHECK(nDataRowsAsSizeT <= maxInt32AsSizeT, services::ErrorIncorrectNumberOfRowsInInputNumericTable);
     DAAL_CHECK(nDataColumnsAsSizeT <= maxInt32AsSizeT, services::ErrorIncorrectNumberOfColumnsInInputNumericTable);
-    std::cout<<"in compute step 6"<<std::endl;
+    std::cout << "in compute step 6" << std::endl;
     if (ntW)
     {
         const size_t nWeightRowsAsSizeT    = ntW->getNumberOfRows();
@@ -190,28 +190,28 @@ Status DBSCANBatchKernelUCAPI<algorithmFPType>::compute(const NumericTable * x, 
         DAAL_CHECK(nWeightRowsAsSizeT == nDataRowsAsSizeT, services::ErrorIncorrectNumberOfRowsInInputNumericTable);
         DAAL_CHECK(nWeightColumnsAsSizeT == 1, services::ErrorIncorrectNumberOfColumnsInInputNumericTable);
     }
-    std::cout<<"in compute step 7"<<std::endl;
+    std::cout << "in compute step 7" << std::endl;
     const uint32_t nRows     = static_cast<uint32_t>(nDataRowsAsSizeT);
     const uint32_t nFeatures = static_cast<uint32_t>(nDataColumnsAsSizeT);
-    std::cout<<"in compute step 8"<<std::endl;
+    std::cout << "in compute step 8" << std::endl;
     BlockDescriptor<algorithmFPType> dataRows;
     DAAL_CHECK_STATUS_VAR(ntData->getBlockOfRows(0, nRows, readOnly, dataRows));
     auto data = dataRows.getBuffer();
-    std::cout<<"in compute step 9"<<std::endl;
+    std::cout << "in compute step 9" << std::endl;
     BlockDescriptor<int> assignRows;
     DAAL_CHECK_STATUS_VAR(ntAssignments->getBlockOfRows(0, nRows, writeOnly, assignRows));
     auto assignBuffer = assignRows.getBuffer();
-    std::cout<<"in compute step 10"<<std::endl;
+    std::cout << "in compute step 10" << std::endl;
     UniversalBuffer assignments = assignBuffer;
     context.fill(assignments, noise, s);
     DAAL_CHECK_STATUS_VAR(s);
-    std::cout<<"in compute step 11"<<std::endl;
+    std::cout << "in compute step 11" << std::endl;
     DAAL_CHECK_STATUS_VAR(initializeBuffers(nRows, ntW));
 
     uint32_t nClusters  = 0;
     uint32_t queueBegin = 0;
     uint32_t queueEnd   = 0;
-    std::cout<<"in compute step 12"<<std::endl;
+    std::cout << "in compute step 12" << std::endl;
     if (_useWeights)
     {
         DAAL_CHECK_STATUS_VAR(getCoresWithWeights(data, nRows, nFeatures, par->minObservations, epsP));
@@ -220,34 +220,34 @@ Status DBSCANBatchKernelUCAPI<algorithmFPType>::compute(const NumericTable * x, 
     {
         DAAL_CHECK_STATUS_VAR(getCores(data, nRows, nFeatures, par->minObservations, epsP));
     }
-    std::cout<<"in compute step 13"<<std::endl;
+    std::cout << "in compute step 13" << std::endl;
     bool foundCluster = false;
-    std::cout<<"in loop step 1.31"<<std::endl;
+    std::cout << "in loop step 1.31" << std::endl;
     DAAL_CHECK_STATUS_VAR(startNextCluster(nClusters, nRows, queueEnd, assignments, foundCluster));
-    std::cout<<"in loop step 1.32"<<std::endl;
+    std::cout << "in loop step 1.32" << std::endl;
     while (foundCluster)
     {
         ++nClusters;
         ++queueEnd;
-        std::cout<<"in loop step 1.33"<<std::endl;
+        std::cout << "in loop step 1.33" << std::endl;
         DAAL_CHECK_STATUS_VAR(setQueueFront(queueEnd));
-        std::cout<<"in loop step 1.34"<<std::endl;
+        std::cout << "in loop step 1.34" << std::endl;
         while (queueBegin < queueEnd)
         {
-            std::cout<<"in loop step 1.35"<<std::endl;
+            std::cout << "in loop step 1.35" << std::endl;
             updateQueue(nClusters - 1, nRows, nFeatures, epsP, queueBegin, queueEnd, data, assignments);
-            std::cout<<"in loop step 1.36"<<std::endl;
+            std::cout << "in loop step 1.36" << std::endl;
             queueBegin = queueEnd;
-            std::cout<<"in loop step 1.37"<<std::endl;
+            std::cout << "in loop step 1.37" << std::endl;
             DAAL_CHECK_STATUS_VAR(getQueueFront(queueEnd));
-            std::cout<<"in loop step 1.38"<<std::endl;
+            std::cout << "in loop step 1.38" << std::endl;
         }
-        std::cout<<"in loop step 3"<<std::endl;
+        std::cout << "in loop step 3" << std::endl;
         DAAL_CHECK_STATUS_VAR(startNextCluster(nClusters, nRows, queueEnd, assignments, foundCluster));
     }
-    std::cout<<"in compute step 13.5"<<std::endl;
+    std::cout << "in compute step 13.5" << std::endl;
     DAAL_CHECK_STATUS_VAR(ntData->releaseBlockOfRows(dataRows));
-    std::cout<<"in compute step 14"<<std::endl;
+    std::cout << "in compute step 14" << std::endl;
     BlockDescriptor<int> nClustersRows;
     DAAL_CHECK_STATUS_VAR(ntNClusters->getBlockOfRows(0, 1, writeOnly, nClustersRows));
     auto nClusterHostBuffer = nClustersRows.getBuffer().toHost(ReadWriteMode::writeOnly, s);
@@ -265,42 +265,42 @@ template <typename algorithmFPType>
 services::Status DBSCANBatchKernelUCAPI<algorithmFPType>::startNextCluster(uint32_t clusterId, uint32_t nRows, uint32_t queueEnd,
                                                                            UniversalBuffer & clusters, bool & found)
 {
-    std::cout<<"start next cluster 1"<<std::endl;
+    std::cout << "start next cluster 1" << std::endl;
     services::Status st;
-    std::cout<<"start next cluster 2"<<std::endl;
+    std::cout << "start next cluster 2" << std::endl;
     DAAL_ITTNOTIFY_SCOPED_TASK(compute.startNextCluster);
-    std::cout<<"start next cluster 3"<<std::endl;
-    auto & context        = Environment::getInstance()->getDefaultExecutionContext();
-    std::cout<<"start next cluster 4"<<std::endl;
+    std::cout << "start next cluster 3" << std::endl;
+    auto & context = Environment::getInstance()->getDefaultExecutionContext();
+    std::cout << "start next cluster 4" << std::endl;
     auto & kernel_factory = context.getClKernelFactory();
-    std::cout<<"start next cluster 5"<<std::endl;
+    std::cout << "start next cluster 5" << std::endl;
     DAAL_CHECK_STATUS_VAR(buildProgram(kernel_factory));
-    std::cout<<"start next cluster 6"<<std::endl;
+    std::cout << "start next cluster 6" << std::endl;
     auto kernel = kernel_factory.getKernel("startNextCluster", st);
-    std::cout<<"start next cluster 7"<<std::endl;
+    std::cout << "start next cluster 7" << std::endl;
     DAAL_CHECK_STATUS_VAR(st);
-    std::cout<<"start next cluster 8"<<std::endl;
+    std::cout << "start next cluster 8" << std::endl;
     int last;
     {
         DAAL_ASSERT_UNIVERSAL_BUFFER(_lastPoint, int, 1);
-        std::cout<<"start next cluster 9"<<std::endl;
+        std::cout << "start next cluster 9" << std::endl;
         const auto lastPointHostBuffer = _lastPoint.template get<int>().toHost(ReadWriteMode::readOnly, st);
-        std::cout<<"start next cluster 10"<<std::endl;
+        std::cout << "start next cluster 10" << std::endl;
         DAAL_CHECK_STATUS_VAR(st);
-        std::cout<<"start next cluster 11"<<std::endl;
+        std::cout << "start next cluster 11" << std::endl;
         last = *lastPointHostBuffer.get();
-        std::cout<<"start next cluster 12"<<std::endl;
+        std::cout << "start next cluster 12" << std::endl;
     }
 
     DAAL_ASSERT_UNIVERSAL_BUFFER(_isCore, int, nRows);
-    std::cout<<"start next cluster 13"<<std::endl;
+    std::cout << "start next cluster 13" << std::endl;
     DAAL_ASSERT_UNIVERSAL_BUFFER(clusters, int, nRows);
-    std::cout<<"start next cluster 14"<<std::endl;
+    std::cout << "start next cluster 14" << std::endl;
     DAAL_ASSERT_UNIVERSAL_BUFFER(_queue, int, nRows);
-    std::cout<<"start next cluster 15"<<std::endl;
+    std::cout << "start next cluster 15" << std::endl;
     KernelArguments args(7, st);
     DAAL_CHECK_STATUS_VAR(st);
-    std::cout<<"start next cluster 16"<<std::endl;
+    std::cout << "start next cluster 16" << std::endl;
     args.set(0, static_cast<int32_t>(clusterId));
     args.set(1, static_cast<int32_t>(nRows));
     args.set(2, static_cast<int32_t>(queueEnd));
@@ -308,32 +308,32 @@ services::Status DBSCANBatchKernelUCAPI<algorithmFPType>::startNextCluster(uint3
     args.set(4, clusters, AccessModeIds::write);
     args.set(5, _lastPoint, AccessModeIds::write);
     args.set(6, _queue, AccessModeIds::write);
-    std::cout<<"start next cluster 17"<<std::endl;
+    std::cout << "start next cluster 17" << std::endl;
     KernelRange localRange(1, _maxSubgroupSize);
     KernelRange globalRange(1, _maxSubgroupSize);
-    std::cout<<"start next cluster 18"<<std::endl;
+    std::cout << "start next cluster 18" << std::endl;
     KernelNDRange range(2);
     range.global(globalRange, st);
-    std::cout<<"start next cluster 19"<<std::endl;
+    std::cout << "start next cluster 19" << std::endl;
     DAAL_CHECK_STATUS_VAR(st);
     range.local(localRange, st);
-    std::cout<<"start next cluster 20"<<std::endl;
+    std::cout << "start next cluster 20" << std::endl;
     DAAL_CHECK_STATUS_VAR(st);
-    std::cout<<"start next cluster 21"<<std::endl;
+    std::cout << "start next cluster 21" << std::endl;
     context.run(range, kernel, args, st);
-    std::cout<<"start next cluster 22"<<std::endl;
+    std::cout << "start next cluster 22" << std::endl;
     DAAL_CHECK_STATUS_VAR(st);
-    std::cout<<"start next cluster 23"<<std::endl;
+    std::cout << "start next cluster 23" << std::endl;
     int newLast;
     {
-        std::cout<<"start next cluster 24"<<std::endl;
+        std::cout << "start next cluster 24" << std::endl;
         const auto lastPointHostBuffer = _lastPoint.template get<int>().toHost(ReadWriteMode::readOnly, st);
-        std::cout<<"start next cluster 25"<<std::endl;
+        std::cout << "start next cluster 25" << std::endl;
         DAAL_CHECK_STATUS_VAR(st);
-        std::cout<<"start next cluster 26"<<std::endl;
+        std::cout << "start next cluster 26" << std::endl;
         newLast = *lastPointHostBuffer.get();
-        std::cout<<"start next cluster 27"<<std::endl;
-        found   = newLast > last;
+        std::cout << "start next cluster 27" << std::endl;
+        found = newLast > last;
     }
     return st;
 }
