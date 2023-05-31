@@ -103,9 +103,8 @@ private:
         std::cout<<"zekernel 7"<<std::endl;
         DAAL_CHECK_LEVEL_ZERO(_zeKernelCreateF(moduleLevelZero, &desc, &_kernelLevelZero), status);
     }
-    std::cout<<"zekernel 8"<<std::endl;
     zeKernelCreateFT _zeKernelCreateF;
-    std::cout<<"zekernel 9"<<std::endl;
+    
     ze_kernel_handle_t _kernelLevelZero;
 };
 
