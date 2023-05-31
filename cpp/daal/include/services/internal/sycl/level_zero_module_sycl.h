@@ -84,25 +84,28 @@ public:
 private:
     explicit ZeKernel(ze_module_handle_t moduleLevelZero, const char * kernelName, Status & status)
     {
+        std::cout<<"zekernel 1"<<std::endl;
         static DynamicLibHelper zeLib(zeLoaderName, libLoadFlags, status);
+        std::cout<<"zekernel 2"<<std::endl;
         DAAL_CHECK_STATUS_RETURN_VOID_IF_FAIL(status);
-
+        std::cout<<"zekernel 3"<<std::endl;
         static zeKernelCreateFT stZeKernelCreateF = zeLib.getSymbol<zeKernelCreateFT>(zeKernelCreateFuncName, status);
+        std::cout<<"zekernel 4"<<std::endl;
         DAAL_CHECK_STATUS_RETURN_VOID_IF_FAIL(status);
-
+        std::cout<<"zekernel 5"<<std::endl;
         _zeKernelCreateF = stZeKernelCreateF;
-
+        std::cout<<"zekernel 6"<<std::endl;
         ze_kernel_desc_t desc;
         desc.stype       = ZE_STRUCTURE_TYPE_KERNEL_DESC;
         desc.pNext       = nullptr;
         desc.flags       = ze_kernel_flags_t(0);
         desc.pKernelName = kernelName;
-
+        std::cout<<"zekernel 7"<<std::endl;
         DAAL_CHECK_LEVEL_ZERO(_zeKernelCreateF(moduleLevelZero, &desc, &_kernelLevelZero), status);
     }
-
+    std::cout<<"zekernel 8"<<std::endl;
     zeKernelCreateFT _zeKernelCreateF;
-
+    std::cout<<"zekernel 9"<<std::endl;
     ze_kernel_handle_t _kernelLevelZero;
 };
 
@@ -129,14 +132,19 @@ public:
 
     ZeKernelPtr createKernel(const char * kernelName, Status & status)
     {
+        std::cout<<"createKernel 1"<<std::endl;
         auto ptr = new ZeKernel(_moduleLevelZero, kernelName, status);
+        std::cout<<"createKernel 2"<<std::endl;
         if (!status)
         {
+            std::cout<<"createKernel 3"<<std::endl;
             if (ptr) delete ptr;
             ptr = nullptr;
         }
         else if (!ptr)
+            {std::cout<<"createKernel 4"<<std::endl;
             status |= ErrorMemoryAllocationFailed;
+            }
         return ZeKernelPtr(ptr);
     }
 
