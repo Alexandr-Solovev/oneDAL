@@ -23,7 +23,7 @@
 #endif
 
 #include <cstring>
-
+#include <iostream>
 #include <CL/cl.h>
 #include <sycl/sycl.hpp>
 
@@ -324,8 +324,11 @@ public:
 
     explicit OpenClKernelLevelZeroRef(const OpenClProgramRef & programRef, const String & kernelName, Status & status)
     {
+        std::cout<<"in oclkernell0refline 327"<<std::endl;
         _kernelLevelZeroPtr = programRef.getModuleLevelZeroPtr()->createKernel(kernelName.c_str(), status);
+        std::cout<<"in oclkernell0refline 329"<<std::endl;
         DAAL_CHECK_STATUS_RETURN_VOID_IF_FAIL(status);
+        std::cout<<"in oclkernell0refline 331"<<std::endl;
     }
 
     ZeKernelPtr getKernelLevelZeroPtr() const { return _kernelLevelZeroPtr; }
@@ -395,8 +398,11 @@ public:
     static SharedPtr<OpenClKernelLevelZero> create(ExecutionTargetId executionTarget, const OpenClProgramRef & programRef,
                                                    const OpenClKernelLevelZeroRef & kernelRef, Status & status)
     {
+        std::cout<<"in create 1"<<std::endl;
         auto * ptr = new OpenClKernelLevelZero(executionTarget, programRef, kernelRef);
+        std::cout<<"in create 2"<<std::endl;
         if (!ptr) status |= ErrorMemoryAllocationFailed;
+        std::cout<<"in create 3"<<std::endl;
         return SharedPtr<OpenClKernelLevelZero>(ptr);
     }
 
