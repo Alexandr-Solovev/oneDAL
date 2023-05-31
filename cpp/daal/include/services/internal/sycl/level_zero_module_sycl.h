@@ -27,7 +27,7 @@
 #endif
 
 #include <sycl/sycl.hpp>
-
+#include <iostream>
 #include "services/daal_shared_ptr.h"
 #include "services/internal/dynamic_lib_helper.h"
 #include "services/internal/sycl/error_handling_sycl.h"
