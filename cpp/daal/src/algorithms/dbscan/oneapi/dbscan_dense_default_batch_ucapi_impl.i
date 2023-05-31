@@ -265,28 +265,42 @@ template <typename algorithmFPType>
 services::Status DBSCANBatchKernelUCAPI<algorithmFPType>::startNextCluster(uint32_t clusterId, uint32_t nRows, uint32_t queueEnd,
                                                                            UniversalBuffer & clusters, bool & found)
 {
+    std::cout<<"start next cluster 1"<<std::endl;
     services::Status st;
+    std::cout<<"start next cluster 2"<<std::endl;
     DAAL_ITTNOTIFY_SCOPED_TASK(compute.startNextCluster);
+    std::cout<<"start next cluster 3"<<std::endl;
     auto & context        = Environment::getInstance()->getDefaultExecutionContext();
+    std::cout<<"start next cluster 4"<<std::endl;
     auto & kernel_factory = context.getClKernelFactory();
+    std::cout<<"start next cluster 5"<<std::endl;
     DAAL_CHECK_STATUS_VAR(buildProgram(kernel_factory));
+    std::cout<<"start next cluster 6"<<std::endl;
     auto kernel = kernel_factory.getKernel("startNextCluster", st);
+    std::cout<<"start next cluster 7"<<std::endl;
     DAAL_CHECK_STATUS_VAR(st);
-
+    std::cout<<"start next cluster 8"<<std::endl;
     int last;
     {
         DAAL_ASSERT_UNIVERSAL_BUFFER(_lastPoint, int, 1);
+        std::cout<<"start next cluster 9"<<std::endl;
         const auto lastPointHostBuffer = _lastPoint.template get<int>().toHost(ReadWriteMode::readOnly, st);
+        std::cout<<"start next cluster 10"<<std::endl;
         DAAL_CHECK_STATUS_VAR(st);
+        std::cout<<"start next cluster 11"<<std::endl;
         last = *lastPointHostBuffer.get();
+        std::cout<<"start next cluster 12"<<std::endl;
     }
 
     DAAL_ASSERT_UNIVERSAL_BUFFER(_isCore, int, nRows);
+    std::cout<<"start next cluster 13"<<std::endl;
     DAAL_ASSERT_UNIVERSAL_BUFFER(clusters, int, nRows);
+    std::cout<<"start next cluster 14"<<std::endl;
     DAAL_ASSERT_UNIVERSAL_BUFFER(_queue, int, nRows);
-
+    std::cout<<"start next cluster 15"<<std::endl;
     KernelArguments args(7, st);
     DAAL_CHECK_STATUS_VAR(st);
+    std::cout<<"start next cluster 16"<<std::endl;
     args.set(0, static_cast<int32_t>(clusterId));
     args.set(1, static_cast<int32_t>(nRows));
     args.set(2, static_cast<int32_t>(queueEnd));
@@ -294,23 +308,31 @@ services::Status DBSCANBatchKernelUCAPI<algorithmFPType>::startNextCluster(uint3
     args.set(4, clusters, AccessModeIds::write);
     args.set(5, _lastPoint, AccessModeIds::write);
     args.set(6, _queue, AccessModeIds::write);
-
+    std::cout<<"start next cluster 17"<<std::endl;
     KernelRange localRange(1, _maxSubgroupSize);
     KernelRange globalRange(1, _maxSubgroupSize);
-
+    std::cout<<"start next cluster 18"<<std::endl;
     KernelNDRange range(2);
     range.global(globalRange, st);
+    std::cout<<"start next cluster 19"<<std::endl;
     DAAL_CHECK_STATUS_VAR(st);
     range.local(localRange, st);
+    std::cout<<"start next cluster 20"<<std::endl;
     DAAL_CHECK_STATUS_VAR(st);
-
+    std::cout<<"start next cluster 21"<<std::endl;
     context.run(range, kernel, args, st);
+    std::cout<<"start next cluster 22"<<std::endl;
     DAAL_CHECK_STATUS_VAR(st);
+    std::cout<<"start next cluster 23"<<std::endl;
     int newLast;
     {
+        std::cout<<"start next cluster 24"<<std::endl;
         const auto lastPointHostBuffer = _lastPoint.template get<int>().toHost(ReadWriteMode::readOnly, st);
+        std::cout<<"start next cluster 25"<<std::endl;
         DAAL_CHECK_STATUS_VAR(st);
+        std::cout<<"start next cluster 26"<<std::endl;
         newLast = *lastPointHostBuffer.get();
+        std::cout<<"start next cluster 27"<<std::endl;
         found   = newLast > last;
     }
     return st;
