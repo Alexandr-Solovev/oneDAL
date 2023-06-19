@@ -56,7 +56,7 @@ static result_t call_daal_kernel(const context_gpu& ctx,
     const double epsilon = desc.get_epsilon() * desc.get_epsilon();
     const std::int64_t min_observations = desc.get_min_observations();
 
-    auto dummy_int_array = pr::ndarray<std::int32_t, 1>::empty(queue, 1, sycl::usm::alloc::device);
+    //auto dummy_int_array = pr::ndarray<std::int32_t, 1>::empty(queue, 1, sycl::usm::alloc::device);
     auto [arr_cores, cores_event] =
         pr::ndarray<std::int32_t, 1>::full(queue, block_size, 0, sycl::usm::alloc::device);
     auto [arr_responses, responses_event] =

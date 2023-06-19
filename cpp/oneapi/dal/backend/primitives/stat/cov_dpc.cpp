@@ -19,6 +19,7 @@
 #include "oneapi/dal/backend/primitives/loops.hpp"
 #include "oneapi/dal/table/row_accessor.hpp"
 #include <sycl/ext/oneapi/experimental/builtins.hpp>
+#include <iostream>
 
 namespace oneapi::dal::backend::primitives {
 
@@ -69,7 +70,7 @@ inline sycl::event compute_covariance(sycl::queue& q,
     const Float inv_n1 = (n > Float(1)) ? Float(1.0 / double(n - 1)) : Float(1);
     const Float* sums_ptr = sums.get_data();
     Float* cov_ptr = cov.get_mutable_data();
-
+    std::cout<<"compute cov"<<std::endl;
     return q.submit([&](sycl::handler& cgh) {
         const auto range = make_range_2d(p, p);
 
@@ -118,7 +119,7 @@ sycl::event variances(sycl::queue& q,
     const auto p = cov.get_dimension(0);
     const Float* cov_ptr = cov.get_data();
     Float* vars_ptr = vars.get_mutable_data();
-
+    std::cout<<"vars"<<std::endl;
     return q.submit([&](sycl::handler& cgh) {
         const auto range = dal::backend::make_range_1d(p);
 
@@ -154,7 +155,7 @@ inline sycl::event prepare_correlation(sycl::queue& q,
     Float* tmp_ptr = tmp.get_mutable_data();
 
     const Float eps = std::numeric_limits<Float>::epsilon();
-
+    std::cout<<"prepare corr"<<std::endl;
     return q.submit([&](sycl::handler& cgh) {
         const auto range = dal::backend::make_range_1d(p);
 
@@ -191,7 +192,7 @@ inline sycl::event finalize_correlation(sycl::queue& q,
     const Float* sums_ptr = sums.get_data();
     const Float* tmp_ptr = tmp.get_mutable_data();
     Float* corr_ptr = corr.get_mutable_data();
-
+    std::cout<<"finalize corr"<<std::endl;
     return q.submit([&](sycl::handler& cgh) {
         const auto range = make_range_2d(p, p);
 
@@ -253,7 +254,7 @@ inline sycl::event prepare_correlation_from_covariance(sycl::queue& q,
     Float* tmp_ptr = tmp.get_mutable_data();
 
     const Float eps = std::numeric_limits<Float>::epsilon();
-
+    std::cout<<"prepare corr from cov"<<std::endl;
     return q.submit([&](sycl::handler& cgh) {
         const auto range = dal::backend::make_range_1d(p);
 
@@ -292,6 +293,7 @@ inline sycl::event finalize_correlation_from_covariance(sycl::queue& q,
     const Float* tmp_ptr = tmp.get_data();
     Float* corr_ptr = corr.get_mutable_data();
     const Float* cov_ptr = cov.get_data();
+    std::cout<<"finalize corr from cov"<<std::endl;
     return q.submit([&](sycl::handler& cgh) {
         const auto range = make_range_2d(p, p);
 
