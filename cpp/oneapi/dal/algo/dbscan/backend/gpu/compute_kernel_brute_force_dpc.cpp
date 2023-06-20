@@ -17,7 +17,7 @@
 #include "oneapi/dal/algo/dbscan/backend/gpu/compute_kernel.hpp"
 #include "oneapi/dal/algo/dbscan/backend/gpu/data_keeper.hpp"
 #include "oneapi/dal/algo/dbscan/backend/gpu/results.hpp"
-
+#include <numeric>
 #include "oneapi/dal/detail/profiler.hpp"
 
 namespace bk = oneapi::dal::backend;
@@ -34,28 +34,34 @@ using result_t = compute_result<task::clustering>;
 using input_t = compute_input<task::clustering>;
 
 template <typename Float>
-static result_t call_daal_kernel(const context_gpu& ctx,
-                                 const descriptor_t& desc,
-                                 const table& local_data,
-                                 const table& local_weights) {
+static result_t compute_kernel_impl(const context_gpu& ctx,
+                                    const descriptor_t& desc,
+                                    const table& local_data,
+                                    const table& local_weights) {
     auto& comm = ctx.get_communicator();
     auto& queue = ctx.get_queue();
 
     std::int64_t rank = comm.get_rank();
     std::int64_t rank_count = comm.get_rank_count();
 
-    const std::int64_t block_size = local_data.get_row_count();
-    const std::int64_t block_start = local_data.get_row_count() * rank_count;
-    const std::int64_t block_end = block_start + block_size;
-    auto row_count_global = local_data.get_row_count();
-    {
-        ONEDAL_PROFILER_TASK(allreduce_rows_count_global);
-        comm.allreduce(row_count_global, spmd::reduce_op::sum).wait();
-    }
+    std::int64_t block_size = local_data.get_row_count();
+    array<std::int64_t> local_row_counts_ = array<std::int64_t>::zeros(rank_count);
+    auto local_row_counts_ptr = local_row_counts_.get_mutable_data();
+    local_row_counts_ptr[rank] = block_size;
+
+    comm.allreduce(local_row_counts_).wait();
+
+    const std::int64_t total_row_count =
+        std::accumulate(local_row_counts_ptr, local_row_counts_ptr + rank_count, 0);
+
+    std::int64_t block_start =
+        std::accumulate(local_row_counts_ptr, local_row_counts_ptr + rank, 0);
+    std::int64_t block_end = block_start + block_size;
 
     const double epsilon = desc.get_epsilon() * desc.get_epsilon();
     const std::int64_t min_observations = desc.get_min_observations();
     const auto data_nd = pr::table2ndarray<Float>(queue, local_data, sycl::usm::alloc::device);
+
     const auto weights_nd =
         pr::table2ndarray<Float>(queue, local_weights, sycl::usm::alloc::device);
 
@@ -64,7 +70,7 @@ static result_t call_daal_kernel(const context_gpu& ctx,
     auto [arr_responses, responses_event] =
         pr::ndarray<std::int32_t, 1>::full(queue, block_size, -1, sycl::usm::alloc::device);
     auto [arr_queue, queue_event] =
-        pr::ndarray<std::int32_t, 1>::full(queue, row_count_global, -1, sycl::usm::alloc::device);
+        pr::ndarray<std::int32_t, 1>::full(queue, total_row_count, -1, sycl::usm::alloc::device);
     auto [arr_queue_front, queue_front_event] =
         pr::ndarray<std::int32_t, 1>::full(queue, 1, 0, sycl::usm::alloc::device);
 
@@ -83,7 +89,7 @@ static result_t call_daal_kernel(const context_gpu& ctx,
     std::int64_t cluster_count = 0;
     std::int32_t cluster_index =
         kernels_fp<Float>::start_next_cluster(queue, arr_cores, arr_responses);
-    cluster_index = cluster_index < block_size ? cluster_index + block_start : row_count_global;
+    cluster_index = cluster_index < block_size ? cluster_index + block_start : total_row_count;
     {
         ONEDAL_PROFILER_TASK(allreduce_cluster_index);
         comm.allreduce(cluster_index, spmd::reduce_op::min).wait();
@@ -93,7 +99,7 @@ static result_t call_daal_kernel(const context_gpu& ctx,
     }
     std::int32_t queue_begin = 0;
     std::int32_t queue_end = 0;
-    while (cluster_index < de::integral_cast<std::int32_t>(row_count_global)) {
+    while (cluster_index < de::integral_cast<std::int32_t>(total_row_count)) {
         cluster_count++;
         bool in_range = cluster_index >= block_start && cluster_index < block_end;
         if (in_range) {
@@ -167,7 +173,7 @@ static result_t call_daal_kernel(const context_gpu& ctx,
         }
 
         cluster_index = kernels_fp<Float>::start_next_cluster(queue, arr_cores, arr_responses);
-        cluster_index = cluster_index < block_size ? cluster_index + block_start : row_count_global;
+        cluster_index = cluster_index < block_size ? cluster_index + block_start : total_row_count;
         {
             ONEDAL_PROFILER_TASK(cluster_index);
             comm.allreduce(cluster_index, spmd::reduce_op::min).wait();
@@ -178,7 +184,7 @@ static result_t call_daal_kernel(const context_gpu& ctx,
 
 template <typename Float>
 static result_t compute(const context_gpu& ctx, const descriptor_t& desc, const input_t& input) {
-    return call_daal_kernel<Float>(ctx, desc, input.get_data(), input.get_weights());
+    return compute_kernel_impl<Float>(ctx, desc, input.get_data(), input.get_weights());
 }
 
 template <typename Float>
