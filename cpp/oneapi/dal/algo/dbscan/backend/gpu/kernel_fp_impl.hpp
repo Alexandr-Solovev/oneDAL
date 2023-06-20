@@ -29,7 +29,7 @@ namespace pr = dal::backend::primitives;
 inline std::int64_t get_recommended_sg_size(const sycl::queue& queue,
                                             std::int64_t column_count = 0) {
     // TODO optimization/dispatching
-    return column_count > 32 ? 32 : 16;
+    return bk::device_max_wg_size(queue);
 }
 
 template <typename Float, bool use_weights>
@@ -75,10 +75,11 @@ struct get_core_wide_kernel {
                     const std::uint32_t local_size = sg.get_local_range()[0];
 
                     count_type count = 0;
+                    const std::int64_t block_start_idx = block_start + wg_id;
                     for (std::int64_t j = 0; j < row_count; j++) {
                         Float sum = Float(0);
                         for (std::int64_t i = local_id; i < column_count; i += local_size) {
-                            Float val = data_ptr[(block_start + wg_id) * column_count + i] -
+                            Float val = data_ptr[block_start_idx * column_count + i] -
                                         data_ptr[j * column_count + i];
                             sum += val * val;
                         }

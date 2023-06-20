@@ -43,6 +43,9 @@ void run(sycl::queue &queue) {
     auto rank_count = comm.get_rank_count();
 
     auto input_vec = split_table_by_rows<float>(queue, x_data, rank_count);
+    std::cout << "rank =" << rank_id << "dimensions" << input_vec[rank_id].get_dimension(0)
+              << input_vec[rank_id].get_dimension(1) << std::endl;
+
     dal::dbscan::compute_input local_input{ input_vec[rank_id], dal::table() };
     const auto result_compute = dal::preview::compute(comm, dbscan_desc, local_input);
 

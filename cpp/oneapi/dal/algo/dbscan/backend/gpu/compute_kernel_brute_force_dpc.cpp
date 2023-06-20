@@ -42,16 +42,19 @@ static result_t call_daal_kernel(const context_gpu& ctx,
     auto& queue = ctx.get_queue();
 
     data_keeper<Float> keeper(ctx);
+    std::int64_t rank = comm.get_rank();
+    std::int64_t rank_count = comm.get_rank_count();
+    std::cout << "rank =" << rank << "dimensions" << local_data.get_row_count()
+              << local_data.get_column_count() << std::endl;
     keeper.init(local_data, local_weights);
     const std::int64_t block_size = keeper.get_block_size();
     const std::int64_t block_start = keeper.get_block_start();
     const std::int64_t block_end = block_start + block_size;
     const std::int64_t row_count = keeper.get_row_count();
     auto arr_data = keeper.get_data();
+    std::cout << "rank =" << rank << "dimensions" << arr_data.get_dimension(0)
+              << arr_data.get_dimension(1) << std::endl;
     auto arr_weights = keeper.get_weights();
-
-    std::int64_t rank = comm.get_rank();
-    std::int64_t rank_count = comm.get_rank_count();
 
     const double epsilon = desc.get_epsilon() * desc.get_epsilon();
     const std::int64_t min_observations = desc.get_min_observations();
