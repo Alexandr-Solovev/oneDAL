@@ -188,7 +188,6 @@ def dal_test(name, hdrs=[], srcs=[], dal_deps=[], dal_test_deps=[],
         ] if mpi else []) + ([
             "@onedal//cpp/oneapi/dal/test/engine:ccl",
         ] if ccl else []),
-        extra_deps = _test_deps_on_daal() + extra_deps,
         testonly = True,
         **kwargs,
     )
@@ -281,10 +280,6 @@ def dal_collect_test_suites(name, root, modules=[], target="tests", tests=[], **
 def dal_example(name, dal_deps=[], **kwargs):
     dal_test(
         name = name,
-        dal_deps = [
-            "@onedal//cpp/oneapi/dal:core",
-            "@onedal//cpp/oneapi/dal/io",
-        ] + dal_deps,
         framework = "none",
         **kwargs,
     )
@@ -305,16 +300,6 @@ def dal_example_suite(name, srcs, **kwargs):
         tests = suite_deps,
     )
 
-def dal_algo_example_suite(algos, dal_deps=[], **kwargs):
-    for algo in algos:
-        dal_example_suite(
-            name = algo,
-            srcs = native.glob(["source/{}/*.cpp".format(algo)]),
-            dal_deps = dal_deps + [
-                "@onedal//cpp/oneapi/dal/algo:{}".format(algo),
-            ],
-            **kwargs,
-        )
 
 def _test_link_mode_deps(dal_deps):
     return _select({
