@@ -29,6 +29,16 @@
 #include "istrconv_daal.h"
 #include "istrconv_daal_el.h"
 
+
+#if defined(__cplusplus)
+    #define _ISTRCONV_EXTERN_C extern "C"
+#else
+    #define _ISTRCONV_EXTERN_C extern
+#endif
+
+_ISTRCONV_EXTERN_C int __FPK_string_to_int_generic(const char * nptr, char ** endptr);
+
+
 namespace daal
 {
 namespace internal

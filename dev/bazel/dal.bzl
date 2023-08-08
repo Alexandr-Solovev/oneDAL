@@ -188,6 +188,8 @@ def dal_test(name, hdrs=[], srcs=[], dal_deps=[], dal_test_deps=[],
         ] if mpi else []) + ([
             "@onedal//cpp/oneapi/dal/test/engine:ccl",
         ] if ccl else []),
+                extra_deps = _test_deps_on_daal() + extra_deps,
+        
         testonly = True,
         **kwargs,
     )

@@ -21,5 +21,9 @@ dal_example_suite(
     name = "table",
     compile_as = [ "dpc++" ],
     srcs = glob(["source/table/*.cpp"]),
+        dpc_deps = [
+        "@micromkl//:headers",
+        "@micromkl_dpc//:headers",
+    ],
 )
 
