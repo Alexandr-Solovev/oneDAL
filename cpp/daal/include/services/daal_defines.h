@@ -466,7 +466,7 @@ const int SERIALIZATION_DBSCAN_DISTRIBUTED_PARTIAL_RESULT_STEP13_ID = 121310;
     #define DAAL_ALGORITHM_FP_TYPE float /* default type for algorithms */
 #endif
 #ifndef DAAL_DATA_TYPE
-    #define DAAL_DATA_TYPE float /* default type for tables and tensors */
+    #define DAAL_DATA_TYPE double /* default type for tables and tensors */
 #endif
 #ifndef DAAL_SUMMARY_STATISTICS_TYPE
     #define DAAL_SUMMARY_STATISTICS_TYPE float /* default type for summary statistics in data source */
