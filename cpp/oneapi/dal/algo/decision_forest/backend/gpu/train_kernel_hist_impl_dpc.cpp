@@ -92,47 +92,14 @@ void train_kernel_hist_impl<Float, Bin, Index, Task>::validate_input(const descr
 }
 
 template <typename Float, typename Bin, typename Index, typename Task>
-Index train_kernel_hist_impl<Float, Bin, Index, Task>::get_row_total_count(bool distr_mode,
-                                                                           Index row_count) {
-    Index row_total_count = row_count;
-
-    if (distr_mode) {
-        ONEDAL_PROFILER_TASK(allreduce_row_total_count);
-        comm_.allreduce(row_total_count).wait();
-    }
-
-    return row_total_count;
-}
-
-template <typename Float, typename Bin, typename Index, typename Task>
-Index train_kernel_hist_impl<Float, Bin, Index, Task>::get_global_row_offset(bool distr_mode,
-                                                                             Index row_count) {
-    Index global_row_offset = 0;
-
-    if (distr_mode) {
-        auto row_count_list_host = pr::ndarray<Index, 1>::empty({ comm_.get_rank_count() });
-        Index* row_count_list_host_ptr = row_count_list_host.get_mutable_data();
-        {
-            ONEDAL_PROFILER_TASK(allgather_row_count);
-            comm_.allgather(row_count, row_count_list_host.flatten()).wait();
-        }
-
-        for (std::int64_t i = 0; i < comm_.get_rank(); ++i) {
-            global_row_offset += row_count_list_host_ptr[i];
-        }
-    }
-
-    return global_row_offset;
-}
-
-template <typename Float, typename Bin, typename Index, typename Task>
 void train_kernel_hist_impl<Float, Bin, Index, Task>::init_params(train_context_t& ctx,
                                                                   const descriptor_t& desc,
                                                                   const table& data,
                                                                   const table& responses,
                                                                   const table& weights) {
-    ctx.distr_mode_ = (comm_.get_rank_count() > 1);
-
+    std::int64_t rank_count = comm_.get_rank_count();
+    ctx.distr_mode_ = (rank_count > 1);
+    auto current_rank = comm_.get_rank();
     ctx.use_private_mem_buf_ = true;
 
     ctx.is_weighted_ = (weights.get_row_count() == data.get_row_count());
@@ -143,7 +110,11 @@ void train_kernel_hist_impl<Float, Bin, Index, Task>::init_params(train_context_
     }
 
     ctx.row_count_ = de::integral_cast<Index>(data.get_row_count());
-    ctx.row_total_count_ = get_row_total_count(ctx.distr_mode_, ctx.row_count_);
+    ctx.row_total_count_ = ctx.row_count_;
+    {
+        ONEDAL_PROFILER_TASK(allreduce_total_row_count_exactly_it, queue_);
+        comm_.allreduce(ctx.row_total_count_, spmd::reduce_op::sum).wait();
+    }
 
     ctx.column_count_ = de::integral_cast<Index>(data.get_column_count());
 
@@ -154,7 +125,18 @@ void train_kernel_hist_impl<Float, Bin, Index, Task>::init_params(train_context_
     ctx.selected_row_total_count_ =
         desc.get_observations_per_tree_fraction() * ctx.row_total_count_;
 
-    ctx.global_row_offset_ = get_global_row_offset(ctx.distr_mode_, ctx.row_count_);
+    auto global_rank_offsets = array<std::int64_t>::zeros(rank_count);
+    global_rank_offsets.get_mutable_data()[current_rank] = ctx.row_count_;
+    {
+        ONEDAL_PROFILER_TASK(allreduce_recv_counts, queue_);
+        comm_.allreduce(global_rank_offsets, spmd::reduce_op::sum).wait();
+    }
+
+    ctx.global_row_offset_ = 0;
+    for (std::int64_t i = 0; i < current_rank; i++) {
+        ONEDAL_ASSERT(global_rank_offsets.get_data()[i] >= 0);
+        ctx.global_row_offset_ += global_rank_offsets.get_data()[i];
+    }
 
     ctx.tree_count_ = de::integral_cast<Index>(desc.get_tree_count());
 
@@ -758,54 +740,53 @@ sycl::event train_kernel_hist_impl<Float, Bin, Index, Task>::compute_initial_imp
     pr::ndarray<Index, 1>& node_list,
     Index node_count,
     const bk::event_vector& deps) {
+    ONEDAL_PROFILER_TASK(compute_initial_imp_for_node_list, queue_);
     ONEDAL_ASSERT(imp_data_list.imp_list_.get_count() ==
                   node_count * impl_const_t::node_imp_prop_count_);
     if constexpr (std::is_same_v<task::classification, Task>) {
         ONEDAL_ASSERT(imp_data_list.class_hist_list_.get_count() == node_count * ctx.class_count_);
     }
     ONEDAL_ASSERT(node_list.get_count() == node_count * impl_const_t::node_prop_count_);
-
+    sycl::event event_;
     if constexpr (std::is_same_v<task::classification, Task>) {
-        auto class_hist_list_host = imp_data_list.class_hist_list_.to_host(queue_, deps);
-        auto imp_list_host = imp_data_list.imp_list_.to_host(queue_);
-        auto node_list_host = node_list.to_host(queue_);
+        const Index* class_hist_list_ptr = imp_data_list.class_hist_list_.get_data();
+        Float* imp_list_ptr = imp_data_list.imp_list_.get_mutable_data();
+        Index* node_list_ptr = node_list.get_mutable_data();
 
-        const Index* class_hist_list_host_ptr = class_hist_list_host.get_data();
-        Float* imp_list_host_ptr = imp_list_host.get_mutable_data();
-        Index* node_list_host_ptr = node_list_host.get_mutable_data();
+        // Launch kernel to compute impurity and winning class for each node
+        auto event_ = queue_.submit([&](sycl::handler& cgh) {
+            cgh.depends_on(deps);
+            cgh.parallel_for(sycl::range<1>(node_count), [=](sycl::id<1> idx) {
+                Index node_idx = idx;
+                const Index* node_histogram_ptr = class_hist_list_ptr + node_idx * ctx.class_count_;
+                Float* node_imp_ptr = imp_list_ptr + node_idx * impl_const_t::node_imp_prop_count_;
+                Index* node_ptr = node_list_ptr + node_idx * impl_const_t::node_prop_count_;
 
-        for (Index node_idx = 0; node_idx < node_count; ++node_idx) {
-            const Index* node_histogram_ptr =
-                class_hist_list_host_ptr + node_idx * ctx.class_count_;
-            Float* node_imp_ptr = imp_list_host_ptr + node_idx * impl_const_t::node_imp_prop_count_;
-            Index* node_ptr = node_list_host_ptr + node_idx * impl_const_t::node_prop_count_;
+                Index row_count = node_ptr[impl_const_t::ind_grc];
 
-            Index row_count = node_ptr[impl_const_t::ind_grc];
+                Float imp = Float(1);
+                Float div = Float(1) / (Float(row_count) * row_count);
+                Index max_cls_count = 0;
+                Index win_cls = 0;
+                Index cls_count = 0;
 
-            Float imp = Float(1);
-            Float div = Float(1) / (Float(row_count) * row_count);
-            Index max_cls_count = 0;
-            Index win_cls = 0;
-            Index cls_count = 0;
+                for (Index cls_idx = 0; cls_idx < ctx.class_count_; ++cls_idx) {
+                    cls_count = node_histogram_ptr[cls_idx];
+                    imp -= Float(cls_count) * Float(cls_count) * div;
 
-            for (Index cls_idx = 0; cls_idx < ctx.class_count_; ++cls_idx) {
-                cls_count = node_histogram_ptr[cls_idx];
-                imp -= Float(cls_count) * (cls_count)*div;
-
-                if (cls_count > max_cls_count) {
-                    max_cls_count = cls_count;
-                    win_cls = cls_idx;
+                    if (cls_count > max_cls_count) {
+                        max_cls_count = cls_count;
+                        win_cls = cls_idx;
+                    }
                 }
-            }
 
-            node_ptr[impl_const_t::ind_win] = win_cls;
-            node_imp_ptr[0] = sycl::max(imp, Float(0));
-        }
-        imp_data_list.imp_list_.assign_from_host(queue_, imp_list_host).wait_and_throw();
-        node_list.assign_from_host(queue_, node_list_host).wait_and_throw();
+                node_ptr[impl_const_t::ind_win] = win_cls;
+                node_imp_ptr[0] = sycl::max(imp, Float(0));
+            });
+        });
     }
 
-    return sycl::event{};
+    return event_;
 }
 
 template <typename Float, typename Bin, typename Index, typename Task>
@@ -817,6 +798,7 @@ sycl::event train_kernel_hist_impl<Float, Bin, Index, Task>::compute_initial_his
     imp_data_t& imp_data_list,
     Index node_count,
     const bk::event_vector& deps) {
+    ONEDAL_PROFILER_TASK(compute_initial_histogram_local, queue_);
     ONEDAL_ASSERT(response.get_count() == ctx.row_count_);
     ONEDAL_ASSERT(tree_order.get_count() == ctx.tree_in_block_ * ctx.selected_row_total_count_);
     ONEDAL_ASSERT(node_list.get_count() == node_count * impl_const_t::node_prop_count_);
@@ -835,6 +817,8 @@ sycl::event train_kernel_hist_impl<Float, Bin, Index, Task>::compute_initial_his
     // num of impurity attributes for node
 
     sycl::event fill_event = {};
+    // dal::backend::primitives::ndarray<Float, 1> imp_list_;
+    // dal::backend::primitives::ndarray<Index, 1> class_hist_list_;
     if constexpr (std::is_same_v<Task, task::classification>) {
         fill_event = imp_data_list.class_hist_list_.fill(queue_, 0, deps);
     }
@@ -1122,8 +1106,6 @@ sycl::event train_kernel_hist_impl<Float, Bin, Index, Task>::compute_initial_his
     imp_data_t& imp_data_list,
     Index node_count,
     const bk::event_vector& deps) {
-    ONEDAL_PROFILER_TASK(compute_initial_histogram, queue_);
-
     ONEDAL_ASSERT(response.get_count() == ctx.row_count_);
     ONEDAL_ASSERT(tree_order.get_count() == ctx.tree_in_block_ * ctx.selected_row_total_count_);
     ONEDAL_ASSERT(node_list.get_count() == node_count * impl_const_t::node_prop_count_);
@@ -1146,7 +1128,14 @@ sycl::event train_kernel_hist_impl<Float, Bin, Index, Task>::compute_initial_his
                                                          deps);
             {
                 ONEDAL_PROFILER_TASK(allreduce_class_hist_list, queue_);
-                comm_.allreduce(imp_data_list.class_hist_list_.flatten(queue_, { last_event }))
+
+                auto data = imp_data_list.class_hist_list_;
+                comm_
+                    .allreduce(queue_,
+                               data.get_data(),
+                               data.get_mutable_data(),
+                               data.get_count(),
+                               spmd::reduce_op::sum)
                     .wait();
             }
             last_event = compute_initial_imp_for_node_list(ctx,
@@ -1409,8 +1398,6 @@ sycl::event train_kernel_hist_impl<Float, Bin, Index, Task>::do_node_split(
     const Index* node_list_ptr = node_list.get_data();
     const Index* node_vs_tree_map_list_ptr = node_vs_tree_map_list.get_data();
 
-    const bool distr_mode = ctx.distr_mode_;
-
     Index* node_list_new_ptr = node_list_new.get_mutable_data();
     Index* node_vs_tree_map_list_new_ptr = node_vs_tree_map_list_new.get_mutable_data();
 
@@ -1449,7 +1436,7 @@ sycl::event train_kernel_hist_impl<Float, Bin, Index, Task>::do_node_split(
                     Index* node_rch = node_list_new_ptr + (new_left_node_pos + 1) * node_prop_count;
 
                     node_lch[impl_const_t::ind_ofs] = node_prn[impl_const_t::ind_ofs];
-                    node_lch[impl_const_t::ind_lrc] = distr_mode
+                    node_lch[impl_const_t::ind_lrc] = ctx.distr_mode_
                                                           ? node_prn[impl_const_t::ind_lch_lrc]
                                                           : node_prn[impl_const_t::ind_lch_grc];
                     node_lch[impl_const_t::ind_grc] = node_prn[impl_const_t::ind_lch_grc];
