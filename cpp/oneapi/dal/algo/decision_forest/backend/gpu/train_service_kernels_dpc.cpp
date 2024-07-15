@@ -67,7 +67,6 @@ sycl::event train_service_kernels<Float, Bin, Index, Task>::initialize_tree_orde
         });
     });
 
-    event.wait_and_throw();
     return event;
 }
 

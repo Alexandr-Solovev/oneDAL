@@ -60,6 +60,7 @@ template <typename Float, typename Bin, typename Index, typename Task>
 void train_kernel_hist_impl<Float, Bin, Index, Task>::validate_input(const descriptor_t& desc,
                                                                      const table& data,
                                                                      const table& labels) const {
+    ONEDAL_PROFILER_TASK(validate_input, queue_);
     if (data.get_row_count() > de::limits<Index>::max()) {
         throw domain_error(msg::invalid_range_of_rows());
     }
@@ -97,6 +98,7 @@ void train_kernel_hist_impl<Float, Bin, Index, Task>::init_params(train_context_
                                                                   const table& data,
                                                                   const table& responses,
                                                                   const table& weights) {
+    ONEDAL_PROFILER_TASK(init_params, queue_);
     std::int64_t rank_count = comm_.get_rank_count();
     ctx.distr_mode_ = (rank_count > 1);
     auto current_rank = comm_.get_rank();
@@ -193,7 +195,7 @@ void train_kernel_hist_impl<Float, Bin, Index, Task>::init_params(train_context_
         bin_borders_host_[clmn_idx] = ind_ftrs.get_bin_borders(clmn_idx).to_host(queue_);
     }
 
-    data_host_ = pr::table2ndarray_1d<Float>(queue_, data, alloc::device).to_host(queue_);
+    data_host_ = pr::table2ndarray_1d<Float>(queue_, data, alloc::host);
 
     response_nd_ = pr::table2ndarray_1d<Float>(queue_, responses, alloc::device);
 
@@ -314,6 +316,7 @@ void train_kernel_hist_impl<Float, Bin, Index, Task>::init_params(train_context_
 
 template <typename Float, typename Bin, typename Index, typename Task>
 void train_kernel_hist_impl<Float, Bin, Index, Task>::allocate_buffers(const train_context_t& ctx) {
+    ONEDAL_PROFILER_TASK(allocate_buffers, queue_);
     de::check_mul_overflow(ctx.selected_row_total_count_, ctx.tree_in_block_);
 
     // main tree order and auxilliary one are used for partitioning
@@ -356,10 +359,6 @@ sycl::event train_kernel_hist_impl<Float, Bin, Index, Task>::gen_initial_tree_or
     Index engine_offset,
     Index node_count) {
     ONEDAL_PROFILER_TASK(gen_initial_tree_order, queue_);
-
-    ONEDAL_ASSERT(node_list_host.get_count() == node_count * impl_const_t::node_prop_count_);
-    ONEDAL_ASSERT(tree_order_level.get_count() ==
-                  ctx.tree_in_block_ * ctx.selected_row_total_count_);
 
     sycl::event last_event;
 
@@ -404,10 +403,13 @@ sycl::event train_kernel_hist_impl<Float, Bin, Index, Task>::gen_initial_tree_or
                 node_ptr[impl_const_t::ind_lrc] = row_idx;
             }
         }
-
-        last_event = ctx.distr_mode_
-                         ? tree_order_level.assign_from_host(queue_, selected_row_host)
-                         : tree_order_level.assign_from_host(queue_, selected_row_global_host);
+        if (ctx.distr_mode_) {
+            tree_order_level = selected_row_host.to_device(queue_);
+        }
+        else {
+            tree_order_level = selected_row_global_host.to_device(queue_);
+            ;
+        }
     }
     else {
         Index row_count = ctx.selected_row_count_;
@@ -437,7 +439,7 @@ sycl::event train_kernel_hist_impl<Float, Bin, Index, Task>::gen_initial_tree_or
                                                                       stride);
         }
     }
-
+    last_event.wait_and_throw();
     return last_event;
 }
 
@@ -662,8 +664,6 @@ inline void compute_hist_for_node(
         bk::atomic_global_add(node_histogram_ptr + cls_idx, prv_hist_ptr[cls_idx]);
     }
 
-    item.barrier(sycl::access::fence_space::local_space);
-
     Float imp = Float(1);
     Float div = Float(1) / (Float(row_count) * row_count);
     Index max_cls_count = 0;
@@ -720,7 +720,6 @@ inline void compute_hist_for_node(
     local_h_ptr[2] = prv_hist[2];
 
     for (Index offset = local_size / 2; offset > 0; offset >>= 1) {
-        item.barrier(sycl::access::fence_space::local_space);
         if (local_id < offset) {
             hist_type_t* h_ptr = local_buf_ptr + (local_id + offset) * hist_prop_count;
             merge_stat(local_h_ptr, h_ptr, hist_prop_count);
@@ -743,9 +742,7 @@ sycl::event train_kernel_hist_impl<Float, Bin, Index, Task>::compute_initial_imp
     ONEDAL_PROFILER_TASK(compute_initial_imp_for_node_list, queue_);
     ONEDAL_ASSERT(imp_data_list.imp_list_.get_count() ==
                   node_count * impl_const_t::node_imp_prop_count_);
-    if constexpr (std::is_same_v<task::classification, Task>) {
-        ONEDAL_ASSERT(imp_data_list.class_hist_list_.get_count() == node_count * ctx.class_count_);
-    }
+
     ONEDAL_ASSERT(node_list.get_count() == node_count * impl_const_t::node_prop_count_);
     sycl::event event_;
     if constexpr (std::is_same_v<task::classification, Task>) {
@@ -798,15 +795,11 @@ sycl::event train_kernel_hist_impl<Float, Bin, Index, Task>::compute_initial_his
     imp_data_t& imp_data_list,
     Index node_count,
     const bk::event_vector& deps) {
-    ONEDAL_PROFILER_TASK(compute_initial_histogram_local, queue_);
     ONEDAL_ASSERT(response.get_count() == ctx.row_count_);
     ONEDAL_ASSERT(tree_order.get_count() == ctx.tree_in_block_ * ctx.selected_row_total_count_);
     ONEDAL_ASSERT(node_list.get_count() == node_count * impl_const_t::node_prop_count_);
     ONEDAL_ASSERT(imp_data_list.imp_list_.get_count() ==
                   node_count * impl_const_t::node_imp_prop_count_);
-    if constexpr (std::is_same_v<Task, task::classification>) {
-        ONEDAL_ASSERT(imp_data_list.class_hist_list_.get_count() == node_count * ctx.class_count_);
-    }
 
     const Float* response_ptr = response.get_data();
     const Index* tree_order_ptr = tree_order.get_data();
@@ -817,8 +810,7 @@ sycl::event train_kernel_hist_impl<Float, Bin, Index, Task>::compute_initial_his
     // num of impurity attributes for node
 
     sycl::event fill_event = {};
-    // dal::backend::primitives::ndarray<Float, 1> imp_list_;
-    // dal::backend::primitives::ndarray<Index, 1> class_hist_list_;
+
     if constexpr (std::is_same_v<Task, task::classification>) {
         fill_event = imp_data_list.class_hist_list_.fill(queue_, 0, deps);
     }
@@ -962,7 +954,6 @@ Float* local_buf_ptr = local_buf.get_pointer().get();
             local_buf_ptr[local_id] = sum;
 
             for (Index offset = local_size / 2; offset > 0; offset >>= 1) {
-                item.barrier(sycl::access::fence_space::local_space);
                 if (local_id < offset) {
                     local_buf_ptr[local_id] += local_buf_ptr[local_id + offset];
                 }
@@ -1042,7 +1033,6 @@ Float* local_buf_ptr = local_buf.get_pointer().get();
             local_buf_ptr[local_id] = sum2cent;
 
             for (Index offset = local_size / 2; offset > 0; offset >>= 1) {
-                item.barrier(sycl::access::fence_space::local_space);
                 if (local_id < offset) {
                     local_buf_ptr[local_id] += local_buf_ptr[local_id + offset];
                 }
@@ -1111,32 +1101,21 @@ sycl::event train_kernel_hist_impl<Float, Bin, Index, Task>::compute_initial_his
     ONEDAL_ASSERT(node_list.get_count() == node_count * impl_const_t::node_prop_count_);
     ONEDAL_ASSERT(imp_data_list.imp_list_.get_count() ==
                   node_count * impl_const_t::node_imp_prop_count_);
-    if constexpr (std::is_same_v<Task, task::classification>) {
-        ONEDAL_ASSERT(imp_data_list.class_hist_list_.get_count() == node_count * ctx.class_count_);
-    }
 
     sycl::event last_event;
 
     if (ctx.distr_mode_) {
         if constexpr (std::is_same_v<Task, task::classification>) {
-            last_event = compute_initial_histogram_local(ctx,
-                                                         response,
-                                                         tree_order,
-                                                         node_list,
-                                                         imp_data_list,
-                                                         node_count,
-                                                         deps);
             {
-                ONEDAL_PROFILER_TASK(allreduce_class_hist_list, queue_);
-
-                auto data = imp_data_list.class_hist_list_;
-                comm_
-                    .allreduce(queue_,
-                               data.get_data(),
-                               data.get_mutable_data(),
-                               data.get_count(),
-                               spmd::reduce_op::sum)
-                    .wait();
+                ONEDAL_PROFILER_TASK(compute_initial_histogram_local_distr, queue_);
+                last_event = compute_initial_histogram_local(ctx,
+                                                             response,
+                                                             tree_order,
+                                                             node_list,
+                                                             imp_data_list,
+                                                             node_count,
+                                                             deps);
+                last_event.wait_and_throw();
             }
             last_event = compute_initial_imp_for_node_list(ctx,
                                                            imp_data_list,
@@ -1181,14 +1160,17 @@ sycl::event train_kernel_hist_impl<Float, Bin, Index, Task>::compute_initial_his
         }
     }
     else {
-        last_event = compute_initial_histogram_local(ctx,
-                                                     response,
-                                                     tree_order,
-                                                     node_list,
-                                                     imp_data_list,
-                                                     node_count,
-                                                     deps);
-        last_event.wait_and_throw();
+        {
+            ONEDAL_PROFILER_TASK(compute_initial_histogram_local_single_gpu, queue_);
+            last_event = compute_initial_histogram_local(ctx,
+                                                         response,
+                                                         tree_order,
+                                                         node_list,
+                                                         imp_data_list,
+                                                         node_count,
+                                                         deps);
+            last_event.wait_and_throw();
+        }
     }
 
     return last_event;
@@ -1373,23 +1355,14 @@ sycl::event train_kernel_hist_impl<Float, Bin, Index, Task>::do_node_split(
     ONEDAL_ASSERT(node_vs_tree_map_list.get_count() == node_count);
     ONEDAL_ASSERT(imp_data_list.imp_list_.get_count() ==
                   node_count * impl_const_t::node_imp_prop_count_);
-    if constexpr (std::is_same_v<Task, task::classification>) {
-        ONEDAL_ASSERT(imp_data_list.class_hist_list_.get_count() == node_count * ctx.class_count_);
-    }
+
     ONEDAL_ASSERT(left_child_imp_data_list.imp_list_.get_count() ==
                   node_count * impl_const_t::node_imp_prop_count_);
-    if constexpr (std::is_same_v<Task, task::classification>) {
-        ONEDAL_ASSERT(left_child_imp_data_list.class_hist_list_.get_count() ==
-                      node_count * ctx.class_count_);
-    }
+
     ONEDAL_ASSERT(node_list_new.get_count() == node_count_new * impl_const_t::node_prop_count_);
     ONEDAL_ASSERT(node_vs_tree_map_list_new.get_count() == node_count_new);
     ONEDAL_ASSERT(imp_data_list_new.imp_list_.get_count() ==
                   node_count_new * impl_const_t::node_imp_prop_count_);
-    if constexpr (std::is_same_v<Task, task::classification>) {
-        ONEDAL_ASSERT(imp_data_list_new.class_hist_list_.get_count() ==
-                      node_count_new * ctx.class_count_);
-    }
 
     const Index node_prop_count =
         impl_const_t::node_prop_count_; // num of split attributes for node
@@ -1895,24 +1868,39 @@ train_result<Task> train_kernel_hist_impl<Float, Bin, Index, Task>::operator()(
             node_ptr[impl_const_t::ind_fid] = impl_const_t::bad_val_;
         }
 
-        last_event = gen_initial_tree_order(ctx,
-                                            engine_arr,
-                                            level_node_list_init_host,
-                                            tree_order_lev_,
-                                            iter,
-                                            node_count);
+        auto gen_initial_tree_order_event = gen_initial_tree_order(ctx,
+                                                                   engine_arr,
+                                                                   level_node_list_init_host,
+                                                                   tree_order_lev_,
+                                                                   iter,
+                                                                   node_count);
 
         auto node_vs_tree_map_list = node_vs_tree_map_list_host.to_device(queue_);
         level_node_lists.push_back(level_node_list_init_host.to_device(queue_));
 
-        last_event = compute_initial_histogram(ctx,
-                                               response_nd_,
-                                               tree_order_lev_,
-                                               level_node_lists[0],
-                                               imp_data_holder.get_mutable_data(0),
-                                               node_count,
-                                               { last_event });
-        last_event.wait_and_throw();
+        auto compute_initial_histogram_event =
+            compute_initial_histogram(ctx,
+                                      response_nd_,
+                                      tree_order_lev_,
+                                      level_node_lists[0],
+                                      imp_data_holder.get_mutable_data(0),
+                                      node_count,
+                                      { gen_initial_tree_order_event });
+        compute_initial_histogram_event.wait_and_throw();
+        queue_.wait_and_throw();
+        if constexpr (std::is_same_v<task::classification, Task>) {
+            {
+                ONEDAL_PROFILER_TASK(allreduce_class_hist_list, queue_);
+                auto data_qq = imp_data_holder.get_mutable_data(0).class_hist_list_;
+                comm_
+                    .allreduce(queue_,
+                               data_qq.get_data(),
+                               data_qq.get_mutable_data(),
+                               data_qq.get_count(),
+                               spmd::reduce_op::sum)
+                    .wait();
+            }
+        }
 
         if (ctx.oob_required_) {
             sycl::event event = train_service_kernels_.get_oob_row_list(

@@ -62,7 +62,7 @@ public:
     train_kernel_hist_impl(const bk::context_gpu& ctx)
             : queue_(ctx.get_queue()),
               comm_(ctx.get_communicator()),
-              train_service_kernels_(queue_) {}
+              train_service_kernels_(ctx.get_queue()) {}
     ~train_kernel_hist_impl() = default;
 
     result_t operator()(const descriptor_t& desc,
