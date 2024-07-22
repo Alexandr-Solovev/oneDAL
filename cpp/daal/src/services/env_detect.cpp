@@ -28,7 +28,7 @@
 #include "src/externals/service_service.h"
 #include "src/threading/threading.h"
 #include "services/error_indexes.h"
-
+#include <iostream>
 #include "src/services/service_topo.h"
 #include "src/threading/service_thread_pinner.h"
 
@@ -53,6 +53,7 @@ void daal_free_buffers();
 
 DAAL_EXPORT daal::services::Environment * daal::services::Environment::getInstance()
 {
+    std::cout << "step 0" << std::endl;
     static daal::services::Environment instance;
     return &instance;
 }
@@ -136,6 +137,7 @@ DAAL_EXPORT daal::services::Environment::Environment(const Environment & e) : da
 
 DAAL_EXPORT void daal::services::Environment::initNumberOfThreads()
 {
+    std::cout << "step 1" << std::endl;
     if (isInit) return;
         // Initializes global oneapi::tbb::task_scheduler_handle object in oneDAL to prevent the unexpected
         // destruction of the calling thread.
@@ -145,15 +147,18 @@ DAAL_EXPORT void daal::services::Environment::initNumberOfThreads()
 #if defined(TARGET_X86_64)
     daal::setSchedulerHandle(&_schedulerHandle);
 #endif
+    std::cout << "step 2 " << std::endl;
     /* if HT enabled - set _numThreads to physical cores num */
     if (daal::internal::ServiceInst::serv_get_ht())
     {
+        std::cout << "step 6 " << std::endl;
         /* Number of cores = number of cpu packages * number of cores per cpu package */
         int ncores = daal::internal::ServiceInst::serv_get_ncpus() * daal::internal::ServiceInst::serv_get_ncorespercpu();
-
+        std::cout << "step 7 " << std::endl;
         /*  Re-set number of threads if ncores is valid and different to _numThreads */
         if ((ncores > 0) && (ncores < _daal_threader_get_max_threads()))
         {
+            std::cout << "step 8 " << std::endl;
             daal::services::Environment::setNumberOfThreads(ncores);
         }
     }
@@ -162,7 +167,9 @@ DAAL_EXPORT void daal::services::Environment::initNumberOfThreads()
 
 DAAL_EXPORT daal::services::Environment::~Environment()
 {
+    std::cout << "step 9 " << std::endl;
     daal::services::daal_free_buffers();
+    std::cout << "step 10 " << std::endl;
 }
 
 void daal::services::Environment::_cpu_detect(int enable)
@@ -177,14 +184,17 @@ void daal::services::Environment::_cpu_detect(int enable)
 DAAL_EXPORT void daal::services::Environment::setNumberOfThreads(const size_t numThreads)
 {
     isInit = true;
+    std::cout << "step 3 " << std::endl;
 #if defined(TARGET_X86_64)
     daal::setSchedulerHandle(&_schedulerHandle);
 #endif
+    std::cout << "step 4 " << std::endl;
     daal::setNumberOfThreads(numThreads, &_globalControl);
 }
 
 DAAL_EXPORT size_t daal::services::Environment::getNumberOfThreads() const
 {
+    std::cout << "step 5 " << std::endl;
     return daal::threader_get_threads_number();
 }
 

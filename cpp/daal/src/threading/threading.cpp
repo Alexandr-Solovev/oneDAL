@@ -24,7 +24,7 @@
 #include "src/threading/threading.h"
 #include "services/daal_memory.h"
 #include "src/algorithms/service_qsort.h"
-
+#include <iostream>
 #define TBB_PREVIEW_GLOBAL_CONTROL 1
 #define TBB_PREVIEW_TASK_ARENA     1
 
@@ -44,11 +44,13 @@ using namespace daal::services;
 
 DAAL_EXPORT void * _threaded_scalable_malloc(const size_t size, const size_t alignment)
 {
+    std::cout << "qqqqq1" << std::endl;
     return scalable_aligned_malloc(size, alignment);
 }
 
 DAAL_EXPORT void _threaded_scalable_free(void * ptr)
 {
+    std::cout << "qqqqq2" << std::endl;
     scalable_aligned_free(ptr);
 }
 
@@ -77,6 +79,7 @@ DAAL_EXPORT void _daal_tbb_task_scheduler_handle_free(void *& schedulerHandle)
 DAAL_EXPORT size_t _setSchedulerHandle(void ** schedulerHandle)
 {
 #if defined(TARGET_X86_64)
+    std::cout << "qqqqq" << std::endl;
     #if (TBB_INTERFACE_VERSION < 12120)
     schedulerHandle = nullptr;
     #else
@@ -90,6 +93,7 @@ DAAL_EXPORT size_t _setSchedulerHandle(void ** schedulerHandle)
 
 DAAL_EXPORT size_t _setNumberOfThreads(const size_t numThreads, void ** globalControl)
 {
+    std::cout << "aaaaa" << std::endl;
     static tbb::spin_mutex mt;
     tbb::spin_mutex::scoped_lock lock(mt);
     if (numThreads != 0)
