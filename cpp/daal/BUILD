@@ -62,6 +62,7 @@ daal_module(
         "//conditions:default": [
                                   ":public_includes",
                                   "@mkl//:headers",
+                                  "@mkl//:mkl_core",
                                 ],
         }),
 )
@@ -82,6 +83,7 @@ daal_module(
     ],
     deps = [
         ":includes",
+        "@mkl//:mkl_core",
     ],
 )
 
@@ -106,6 +108,7 @@ daal_module(
         ":service_headers",
         ":threading_headers",
         ":microvmlipp",
+        "@mkl//:mkl_core",
     ],
 )
 

@@ -25,6 +25,7 @@
 #define __SERVICE_LAPACK_MKL_H__
 
 #include "services/daal_defines.h"
+#include "src/externals/mkl_daal.h"
 #include <mkl.h>
 
 #if !defined(__DAAL_CONCAT4)
@@ -45,45 +46,44 @@
     #define __DAAL_MKL_SSE42 sse42_
 #endif
 
-// #define __DAAL_MKLFN(f_cpu, f_pref, f_name)              __DAAL_CONCAT4(mkl_, f_pref, f_name)
-#define __DAAL_MKLFN(f_cpu, f_pref, f_name)              f_name
-#define __DAAL_MKLFN_CALL(f_pref, f_name, f_args)        __DAAL_MKLFN_CALL1(f_pref, f_name, f_args)
-#define __DAAL_MKLFN_CALL_RETURN(f_pref, f_name, f_args) __DAAL_MKLFN_CALL2(f_pref, f_name, f_args)
+#define __DAAL_MKLFN_LAPACK(f_cpu, f_pref, f_name)              __DAAL_CONCAT4(mkl_, f_pref, f_cpu, f_name)
+#define __DAAL_MKLFN_CALL_LAPACK(f_pref, f_name, f_args)        __DAAL_MKLFN_CALL1_LAPACK(f_pref, f_name, f_args)
+#define __DAAL_MKLFN_CALL_RETURN_LAPACK(f_pref, f_name, f_args) __DAAL_MKLFN_CALL2_LAPACK(f_pref, f_name, f_args)
 
-#define __DAAL_MKLFN_CALL1(f_pref, f_name, f_args)             \
+#define __DAAL_MKLFN_CALL1_LAPACK(f_pref, f_name, f_args)             \
     if (avx512 == cpu)                                         \
     {                                                          \
-        __DAAL_MKLFN(avx512_, f_pref, f_name) f_args;          \
+        __DAAL_MKLFN_LAPACK(avx512_, f_pref, f_name) f_args;          \
     }                                                          \
     if (avx2 == cpu)                                           \
     {                                                          \
-        __DAAL_MKLFN(avx2_, f_pref, f_name) f_args;            \
+        __DAAL_MKLFN_LAPACK(avx2_, f_pref, f_name) f_args;            \
     }                                                          \
     if (sse42 == cpu)                                          \
     {                                                          \
-        __DAAL_MKLFN(__DAAL_MKL_SSE42, f_pref, f_name) f_args; \
+        __DAAL_MKLFN_LAPACK(avx2_, f_pref, f_name) f_args; \
     }                                                          \
     if (sse2 == cpu)                                           \
     {                                                          \
-        __DAAL_MKLFN(__DAAL_MKL_SSE2, f_pref, f_name) f_args;  \
+        __DAAL_MKLFN_LAPACK(avx2_, f_pref, f_name) f_args;  \
     }
 
-#define __DAAL_MKLFN_CALL2(f_pref, f_name, f_args)                    \
+#define __DAAL_MKLFN_CALL2_LAPACK(f_pref, f_name, f_args)                    \
     if (avx512 == cpu)                                                \
     {                                                                 \
-        return __DAAL_MKLFN(avx512_, f_pref, f_name) f_args;          \
+        return __DAAL_MKLFN_LAPACK(avx512_, f_pref, f_name) f_args;          \
     }                                                                 \
     if (avx2 == cpu)                                                  \
     {                                                                 \
-        return __DAAL_MKLFN(avx2_, f_pref, f_name) f_args;            \
+        return __DAAL_MKLFN_LAPACK(avx2_, f_pref, f_name) f_args;            \
     }                                                                 \
     if (sse42 == cpu)                                                 \
     {                                                                 \
-        return __DAAL_MKLFN(__DAAL_MKL_SSE42, f_pref, f_name) f_args; \
+        return __DAAL_MKLFN_LAPACK(avx2_, f_pref, f_name) f_args; \
     }                                                                 \
     if (sse2 == cpu)                                                  \
     {                                                                 \
-        return __DAAL_MKLFN(__DAAL_MKL_SSE2, f_pref, f_name) f_args;  \
+        return __DAAL_MKLFN_LAPACK(avx2_, f_pref, f_name) f_args;  \
     }
 
 namespace daal
@@ -107,140 +107,140 @@ struct MklLapack<double, cpu>
 
     static void xgetrf(DAAL_INT * m, DAAL_INT * n, double * a, DAAL_INT * lda, DAAL_INT * ipiv, DAAL_INT * info)
     {
-        __DAAL_MKLFN_CALL(lapack_, dgetrf, ((MKL_INT *)m, (MKL_INT *)n, a, (MKL_INT *)lda, (MKL_INT *)ipiv, (MKL_INT *)info));
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, dgetrf, ((MKL_INT *)m, (MKL_INT *)n, a, (MKL_INT *)lda, (MKL_INT *)ipiv, (MKL_INT *)info));
     }
 
     static void xxgetrf(DAAL_INT * m, DAAL_INT * n, double * a, DAAL_INT * lda, DAAL_INT * ipiv, DAAL_INT * info)
     {
         int old_threads = mkl_serv_set_num_threads_local(1);
-        __DAAL_MKLFN_CALL(lapack_, dgetrf, ((MKL_INT *)m, (MKL_INT *)n, a, (MKL_INT *)lda, (MKL_INT *)ipiv, (MKL_INT *)info));
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, dgetrf, ((MKL_INT *)m, (MKL_INT *)n, a, (MKL_INT *)lda, (MKL_INT *)ipiv, (MKL_INT *)info));
         mkl_serv_set_num_threads_local(old_threads);
     }
 
     static void xgetrs(char * trans, DAAL_INT * n, DAAL_INT * nrhs, double * a, DAAL_INT * lda, DAAL_INT * ipiv, double * b, DAAL_INT * ldb,
                        DAAL_INT * info)
     {
-        __DAAL_MKLFN_CALL(lapack_, dgetrs,
-                          (trans, (MKL_INT *)n, (MKL_INT *)nrhs, a, (MKL_INT *)lda, (MKL_INT *)ipiv, b, (MKL_INT *)ldb, (MKL_INT *)info));
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, dgetrs,
+                          (trans, (MKL_INT *)n, (MKL_INT *)nrhs, a, (MKL_INT *)lda, (MKL_INT *)ipiv, b, (MKL_INT *)ldb, (MKL_INT *)info, 0));
     }
 
     static void xxgetrs(char * trans, DAAL_INT * n, DAAL_INT * nrhs, double * a, DAAL_INT * lda, DAAL_INT * ipiv, double * b, DAAL_INT * ldb,
                         DAAL_INT * info)
     {
         int old_threads = mkl_serv_set_num_threads_local(1);
-        __DAAL_MKLFN_CALL(lapack_, dgetrs,
-                          (trans, (MKL_INT *)n, (MKL_INT *)nrhs, a, (MKL_INT *)lda, (MKL_INT *)ipiv, b, (MKL_INT *)ldb, (MKL_INT *)info));
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, dgetrs,
+                          (trans, (MKL_INT *)n, (MKL_INT *)nrhs, a, (MKL_INT *)lda, (MKL_INT *)ipiv, b, (MKL_INT *)ldb, (MKL_INT *)info, 0));
         mkl_serv_set_num_threads_local(old_threads);
     }
 
     static void xpotrf(char * uplo, DAAL_INT * p, double * ata, DAAL_INT * ldata, DAAL_INT * info)
     {
-        __DAAL_MKLFN_CALL(lapack_, dpotrf, (uplo, (MKL_INT *)p, ata, (MKL_INT *)ldata, (MKL_INT *)info));
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, dpotrf, (uplo, (MKL_INT *)p, ata, (MKL_INT *)ldata, (MKL_INT *)info, 0));
     }
 
     static void xxpotrf(char * uplo, DAAL_INT * p, double * ata, DAAL_INT * ldata, DAAL_INT * info)
     {
         int old_threads = mkl_serv_set_num_threads_local(1);
-        __DAAL_MKLFN_CALL(lapack_, dpotrf, (uplo, (MKL_INT *)p, ata, (MKL_INT *)ldata, (MKL_INT *)info));
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, dpotrf, (uplo, (MKL_INT *)p, ata, (MKL_INT *)ldata, (MKL_INT *)info, 0));
         mkl_serv_set_num_threads_local(old_threads);
     }
 
     static void xpotrs(char * uplo, DAAL_INT * p, DAAL_INT * ny, double * ata, DAAL_INT * ldata, double * beta, DAAL_INT * ldaty, DAAL_INT * info)
     {
-        __DAAL_MKLFN_CALL(lapack_, dpotrs, (uplo, (MKL_INT *)p, (MKL_INT *)ny, ata, (MKL_INT *)ldata, beta, (MKL_INT *)ldaty, (MKL_INT *)info));
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, dpotrs, (uplo, (MKL_INT *)p, (MKL_INT *)ny, ata, (MKL_INT *)ldata, beta, (MKL_INT *)ldaty, (MKL_INT *)info, 0));
     }
 
     static void xxpotrs(char * uplo, DAAL_INT * p, DAAL_INT * ny, double * ata, DAAL_INT * ldata, double * beta, DAAL_INT * ldaty, DAAL_INT * info)
     {
         int old_threads = mkl_serv_set_num_threads_local(1);
-        __DAAL_MKLFN_CALL(lapack_, dpotrs, (uplo, (MKL_INT *)p, (MKL_INT *)ny, ata, (MKL_INT *)ldata, beta, (MKL_INT *)ldaty, (MKL_INT *)info));
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, dpotrs, (uplo, (MKL_INT *)p, (MKL_INT *)ny, ata, (MKL_INT *)ldata, beta, (MKL_INT *)ldaty, (MKL_INT *)info, 0));
         mkl_serv_set_num_threads_local(old_threads);
     }
 
     static void xpotri(char * uplo, DAAL_INT * p, double * ata, DAAL_INT * ldata, DAAL_INT * info)
     {
-        __DAAL_MKLFN_CALL(lapack_, dpotri, (uplo, (MKL_INT *)p, ata, (MKL_INT *)ldata, (MKL_INT *)info));
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, dpotri, (uplo, (MKL_INT *)p, ata, (MKL_INT *)ldata, (MKL_INT *)info, 0));
     }
 
     static void xxpotri(char * uplo, DAAL_INT * p, double * ata, DAAL_INT * ldata, DAAL_INT * info)
     {
         int old_threads = mkl_serv_set_num_threads_local(1);
-        __DAAL_MKLFN_CALL(lapack_, dpotri, (uplo, (MKL_INT *)p, ata, (MKL_INT *)ldata, (MKL_INT *)info));
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, dpotri, (uplo, (MKL_INT *)p, ata, (MKL_INT *)ldata, (MKL_INT *)info, 0));
         mkl_serv_set_num_threads_local(old_threads);
     }
 
     static void xgerqf(DAAL_INT * m, DAAL_INT * n, double * a, DAAL_INT * lda, double * tau, double * work, DAAL_INT * lwork, DAAL_INT * info)
     {
-        __DAAL_MKLFN_CALL(lapack_, dgerqf, ((MKL_INT *)m, (MKL_INT *)n, a, (MKL_INT *)lda, tau, work, (MKL_INT *)lwork, (MKL_INT *)info));
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, dgerqf, ((MKL_INT *)m, (MKL_INT *)n, a, (MKL_INT *)lda, tau, work, (MKL_INT *)lwork, (MKL_INT *)info));
     }
 
     static void xxgerqf(DAAL_INT * m, DAAL_INT * n, double * a, DAAL_INT * lda, double * tau, double * work, DAAL_INT * lwork, DAAL_INT * info)
     {
         int old_threads = mkl_serv_set_num_threads_local(1);
-        __DAAL_MKLFN_CALL(lapack_, dgerqf, ((MKL_INT *)m, (MKL_INT *)n, a, (MKL_INT *)lda, tau, work, (MKL_INT *)lwork, (MKL_INT *)info));
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, dgerqf, ((MKL_INT *)m, (MKL_INT *)n, a, (MKL_INT *)lda, tau, work, (MKL_INT *)lwork, (MKL_INT *)info));
         mkl_serv_set_num_threads_local(old_threads);
     }
 
     static void xormrq(char * side, char * trans, DAAL_INT * m, DAAL_INT * n, DAAL_INT * k, double * a, DAAL_INT * lda, double * tau, double * c,
                        DAAL_INT * ldc, double * work, DAAL_INT * lwork, DAAL_INT * info)
     {
-        __DAAL_MKLFN_CALL(lapack_, dormrq,
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, dormrq,
                           (side, trans, (MKL_INT *)m, (MKL_INT *)n, (MKL_INT *)k, a, (MKL_INT *)lda, tau, c, (MKL_INT *)ldc, work, (MKL_INT *)lwork,
-                           (MKL_INT *)info));
+                           (MKL_INT *)info, 0, 0));
     }
 
     static void xxormrq(char * side, char * trans, DAAL_INT * m, DAAL_INT * n, DAAL_INT * k, double * a, DAAL_INT * lda, double * tau, double * c,
                         DAAL_INT * ldc, double * work, DAAL_INT * lwork, DAAL_INT * info)
     {
         int old_threads = mkl_serv_set_num_threads_local(1);
-        __DAAL_MKLFN_CALL(lapack_, dormrq,
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, dormrq,
                           (side, trans, (MKL_INT *)m, (MKL_INT *)n, (MKL_INT *)k, a, (MKL_INT *)lda, tau, c, (MKL_INT *)ldc, work, (MKL_INT *)lwork,
-                           (MKL_INT *)info));
+                           (MKL_INT *)info, 0, 0));
         mkl_serv_set_num_threads_local(old_threads);
     }
 
     static void xtrtrs(char * uplo, char * trans, char * diag, DAAL_INT * n, DAAL_INT * nrhs, double * a, DAAL_INT * lda, double * b, DAAL_INT * ldb,
                        DAAL_INT * info)
     {
-        __DAAL_MKLFN_CALL(lapack_, dtrtrs, (uplo, trans, diag, (MKL_INT *)n, (MKL_INT *)nrhs, a, (MKL_INT *)lda, b, (MKL_INT *)ldb, (MKL_INT *)info));
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, dtrtrs, (uplo, trans, diag, (MKL_INT *)n, (MKL_INT *)nrhs, a, (MKL_INT *)lda, b, (MKL_INT *)ldb, (MKL_INT *)info, 0, 0, 0));
     }
 
     static void xxtrtrs(char * uplo, char * trans, char * diag, DAAL_INT * n, DAAL_INT * nrhs, double * a, DAAL_INT * lda, double * b, DAAL_INT * ldb,
                         DAAL_INT * info)
     {
         int old_threads = mkl_serv_set_num_threads_local(1);
-        __DAAL_MKLFN_CALL(lapack_, dtrtrs, (uplo, trans, diag, (MKL_INT *)n, (MKL_INT *)nrhs, a, (MKL_INT *)lda, b, (MKL_INT *)ldb, (MKL_INT *)info));
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, dtrtrs, (uplo, trans, diag, (MKL_INT *)n, (MKL_INT *)nrhs, a, (MKL_INT *)lda, b, (MKL_INT *)ldb, (MKL_INT *)info, 0, 0, 0));
         mkl_serv_set_num_threads_local(old_threads);
     }
 
     static void xpptrf(char * uplo, DAAL_INT * n, double * ap, DAAL_INT * info)
     {
-        __DAAL_MKLFN_CALL(lapack_, dpptrf, (uplo, (MKL_INT *)n, ap, (MKL_INT *)info));
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, dpptrf, (uplo, (MKL_INT *)n, ap, (MKL_INT *)info, 0));
     }
 
     static void xxpptrf(char * uplo, DAAL_INT * n, double * ap, DAAL_INT * info)
     {
         int old_threads = mkl_serv_set_num_threads_local(1);
-        __DAAL_MKLFN_CALL(lapack_, dpptrf, (uplo, (MKL_INT *)n, ap, (MKL_INT *)info));
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, dpptrf, (uplo, (MKL_INT *)n, ap, (MKL_INT *)info, 0));
         mkl_serv_set_num_threads_local(old_threads);
     }
 
     static void xgeqrf(DAAL_INT m, DAAL_INT n, double * a, DAAL_INT lda, double * tau, double * work, DAAL_INT lwork, DAAL_INT * info)
     {
-        __DAAL_MKLFN_CALL(lapack_, dgeqrf, ((MKL_INT *)(&m), (MKL_INT *)(&n), a, (MKL_INT *)(&lda), tau, work, (MKL_INT *)(&lwork), (MKL_INT *)info));
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, dgeqrf, ((MKL_INT *)(&m), (MKL_INT *)(&n), a, (MKL_INT *)(&lda), tau, work, (MKL_INT *)(&lwork), (MKL_INT *)info));
     }
 
     static void xxgeqrf(DAAL_INT m, DAAL_INT n, double * a, DAAL_INT lda, double * tau, double * work, DAAL_INT lwork, DAAL_INT * info)
     {
         int old_threads = mkl_serv_set_num_threads_local(1);
-        __DAAL_MKLFN_CALL(lapack_, dgeqrf, ((MKL_INT *)(&m), (MKL_INT *)(&n), a, (MKL_INT *)(&lda), tau, work, (MKL_INT *)(&lwork), (MKL_INT *)info));
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, dgeqrf, ((MKL_INT *)(&m), (MKL_INT *)(&n), a, (MKL_INT *)(&lda), tau, work, (MKL_INT *)(&lwork), (MKL_INT *)info));
         mkl_serv_set_num_threads_local(old_threads);
     }
 
     static void xgeqp3(const DAAL_INT m, const DAAL_INT n, double * a, const DAAL_INT lda, DAAL_INT * jpvt, double * tau, double * work,
                        const DAAL_INT lwork, DAAL_INT * info)
     {
-        __DAAL_MKLFN_CALL(lapack_, dgeqp3,
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, dgeqp3,
                           ((MKL_INT *)(&m), (MKL_INT *)(&n), a, (MKL_INT *)(&lda), (MKL_INT *)jpvt, tau, work, (MKL_INT *)(&lwork), (MKL_INT *)info));
     }
 
@@ -248,7 +248,7 @@ struct MklLapack<double, cpu>
                         DAAL_INT * info)
     {
         int old_threads = mkl_serv_set_num_threads_local(1);
-        __DAAL_MKLFN_CALL(lapack_, dgeqp3,
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, dgeqp3,
                           ((MKL_INT *)(&m), (MKL_INT *)(&n), a, (MKL_INT *)(&lda), (MKL_INT *)jpvt, tau, work, (MKL_INT *)(&lwork), (MKL_INT *)info));
         mkl_serv_set_num_threads_local(old_threads);
     }
@@ -256,14 +256,14 @@ struct MklLapack<double, cpu>
     static void xorgqr(const DAAL_INT m, const DAAL_INT n, const DAAL_INT k, double * a, const DAAL_INT lda, const double * tau, double * work,
                        const DAAL_INT lwork, DAAL_INT * info)
     {
-        __DAAL_MKLFN_CALL(lapack_, dorgqr,
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, dorgqr,
                           ((MKL_INT *)(&m), (MKL_INT *)(&n), (MKL_INT *)(&k), a, (MKL_INT *)(&lda), tau, work, (MKL_INT *)(&lwork), (MKL_INT *)info));
     }
 
     static void xxorgqr(DAAL_INT m, DAAL_INT n, DAAL_INT k, double * a, DAAL_INT lda, double * tau, double * work, DAAL_INT lwork, DAAL_INT * info)
     {
         int old_threads = mkl_serv_set_num_threads_local(1);
-        __DAAL_MKLFN_CALL(lapack_, dorgqr,
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, dorgqr,
                           ((MKL_INT *)(&m), (MKL_INT *)(&n), (MKL_INT *)(&k), a, (MKL_INT *)(&lda), tau, work, (MKL_INT *)(&lwork), (MKL_INT *)info));
         mkl_serv_set_num_threads_local(old_threads);
     }
@@ -271,54 +271,54 @@ struct MklLapack<double, cpu>
     static void xgesvd(char jobu, char jobvt, DAAL_INT m, DAAL_INT n, double * a, DAAL_INT lda, double * s, double * u, DAAL_INT ldu, double * vt,
                        DAAL_INT ldvt, double * work, DAAL_INT lwork, DAAL_INT * info)
     {
-        __DAAL_MKLFN_CALL(lapack_, dgesvd,
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, dgesvd,
                           (&jobu, &jobvt, (MKL_INT *)(&m), (MKL_INT *)(&n), a, (MKL_INT *)(&lda), s, u, (MKL_INT *)(&ldu), vt, (MKL_INT *)(&ldvt),
-                           work, (MKL_INT *)(&lwork), (MKL_INT *)info));
+                           work, (MKL_INT *)(&lwork), (MKL_INT *)info, 0, 0));
     }
 
     static void xxgesvd(char jobu, char jobvt, DAAL_INT m, DAAL_INT n, double * a, DAAL_INT lda, double * s, double * u, DAAL_INT ldu, double * vt,
                         DAAL_INT ldvt, double * work, DAAL_INT lwork, DAAL_INT * info)
     {
         int old_threads = mkl_serv_set_num_threads_local(1);
-        __DAAL_MKLFN_CALL(lapack_, dgesvd,
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, dgesvd,
                           (&jobu, &jobvt, (MKL_INT *)(&m), (MKL_INT *)(&n), a, (MKL_INT *)(&lda), s, u, (MKL_INT *)(&ldu), vt, (MKL_INT *)(&ldvt),
-                           work, (MKL_INT *)(&lwork), (MKL_INT *)info));
+                           work, (MKL_INT *)(&lwork), (MKL_INT *)info, 0, 0));
         mkl_serv_set_num_threads_local(old_threads);
     }
 
     static void xsyevd(char * jobz, char * uplo, DAAL_INT * n, double * a, DAAL_INT * lda, double * w, double * work, DAAL_INT * lwork,
                        DAAL_INT * iwork, DAAL_INT * liwork, DAAL_INT * info)
     {
-        __DAAL_MKLFN_CALL(
+        __DAAL_MKLFN_CALL_LAPACK(
             lapack_, dsyevd,
-            (jobz, uplo, (MKL_INT *)n, a, (MKL_INT *)lda, w, work, (MKL_INT *)lwork, (MKL_INT *)iwork, (MKL_INT *)liwork, (MKL_INT *)info));
+            (jobz, uplo, (MKL_INT *)n, a, (MKL_INT *)lda, w, work, (MKL_INT *)lwork, (MKL_INT *)iwork, (MKL_INT *)liwork, (MKL_INT *)info, 0, 0));
     }
 
     static void xxsyevd(char * jobz, char * uplo, DAAL_INT * n, double * a, DAAL_INT * lda, double * w, double * work, DAAL_INT * lwork,
                         DAAL_INT * iwork, DAAL_INT * liwork, DAAL_INT * info)
     {
         int old_threads = mkl_serv_set_num_threads_local(1);
-        __DAAL_MKLFN_CALL(
+        __DAAL_MKLFN_CALL_LAPACK(
             lapack_, dsyevd,
-            (jobz, uplo, (MKL_INT *)n, a, (MKL_INT *)lda, w, work, (MKL_INT *)lwork, (MKL_INT *)iwork, (MKL_INT *)liwork, (MKL_INT *)info));
+            (jobz, uplo, (MKL_INT *)n, a, (MKL_INT *)lda, w, work, (MKL_INT *)lwork, (MKL_INT *)iwork, (MKL_INT *)liwork, (MKL_INT *)info, 0, 0));
         mkl_serv_set_num_threads_local(old_threads);
     }
 
     static void xormqr(char * side, char * trans, DAAL_INT * m, DAAL_INT * n, DAAL_INT * k, double * a, DAAL_INT * lda, double * tau, double * c,
                        DAAL_INT * ldc, double * work, DAAL_INT * lwork, DAAL_INT * info)
     {
-        __DAAL_MKLFN_CALL(lapack_, dormqr,
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, dormqr,
                           (side, trans, (MKL_INT *)m, (MKL_INT *)n, (MKL_INT *)k, a, (MKL_INT *)lda, tau, c, (MKL_INT *)ldc, work, (MKL_INT *)lwork,
-                           (MKL_INT *)info));
+                           (MKL_INT *)info, 0, 0));
     }
 
     static void xxormqr(char * side, char * trans, DAAL_INT * m, DAAL_INT * n, DAAL_INT * k, double * a, DAAL_INT * lda, double * tau, double * c,
                         DAAL_INT * ldc, double * work, DAAL_INT * lwork, DAAL_INT * info)
     {
         int old_threads = mkl_serv_set_num_threads_local(1);
-        __DAAL_MKLFN_CALL(lapack_, dormqr,
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, dormqr,
                           (side, trans, (MKL_INT *)m, (MKL_INT *)n, (MKL_INT *)k, a, (MKL_INT *)lda, tau, c, (MKL_INT *)ldc, work, (MKL_INT *)lwork,
-                           (MKL_INT *)info));
+                           (MKL_INT *)info, 0, 0));
         mkl_serv_set_num_threads_local(old_threads);
     }
 };
@@ -334,147 +334,147 @@ struct MklLapack<float, cpu>
 
     static void xgetrf(DAAL_INT * m, DAAL_INT * n, float * a, DAAL_INT * lda, DAAL_INT * ipiv, DAAL_INT * info)
     {
-        __DAAL_MKLFN_CALL(lapack_, sgetrf, ((MKL_INT *)m, (MKL_INT *)n, a, (MKL_INT *)lda, (MKL_INT *)ipiv, (MKL_INT *)info));
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, sgetrf, ((MKL_INT *)m, (MKL_INT *)n, a, (MKL_INT *)lda, (MKL_INT *)ipiv, (MKL_INT *)info));
     }
 
     static void xxgetrf(DAAL_INT * m, DAAL_INT * n, float * a, DAAL_INT * lda, DAAL_INT * ipiv, DAAL_INT * info)
     {
         int old_threads = mkl_serv_set_num_threads_local(1);
-        __DAAL_MKLFN_CALL(lapack_, sgetrf, ((MKL_INT *)m, (MKL_INT *)n, a, (MKL_INT *)lda, (MKL_INT *)ipiv, (MKL_INT *)info));
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, sgetrf, ((MKL_INT *)m, (MKL_INT *)n, a, (MKL_INT *)lda, (MKL_INT *)ipiv, (MKL_INT *)info));
         mkl_serv_set_num_threads_local(old_threads);
     }
 
     static void xgetrs(char * trans, DAAL_INT * n, DAAL_INT * nrhs, float * a, DAAL_INT * lda, DAAL_INT * ipiv, float * b, DAAL_INT * ldb,
                        DAAL_INT * info)
     {
-        __DAAL_MKLFN_CALL(lapack_, sgetrs,
-                          (trans, (MKL_INT *)n, (MKL_INT *)nrhs, a, (MKL_INT *)lda, (MKL_INT *)ipiv, b, (MKL_INT *)ldb, (MKL_INT *)info));
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, sgetrs,
+                          (trans, (MKL_INT *)n, (MKL_INT *)nrhs, a, (MKL_INT *)lda, (MKL_INT *)ipiv, b, (MKL_INT *)ldb, (MKL_INT *)info, 0));
     }
 
     static void xxgetrs(char * trans, DAAL_INT * n, DAAL_INT * nrhs, float * a, DAAL_INT * lda, DAAL_INT * ipiv, float * b, DAAL_INT * ldb,
                         DAAL_INT * info)
     {
         int old_threads = mkl_serv_set_num_threads_local(1);
-        __DAAL_MKLFN_CALL(lapack_, sgetrs,
-                          (trans, (MKL_INT *)n, (MKL_INT *)nrhs, a, (MKL_INT *)lda, (MKL_INT *)ipiv, b, (MKL_INT *)ldb, (MKL_INT *)info));
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, sgetrs,
+                          (trans, (MKL_INT *)n, (MKL_INT *)nrhs, a, (MKL_INT *)lda, (MKL_INT *)ipiv, b, (MKL_INT *)ldb, (MKL_INT *)info, 0));
         mkl_serv_set_num_threads_local(old_threads);
     }
 
     static void xpotrf(char * uplo, DAAL_INT * p, float * ata, DAAL_INT * ldata, DAAL_INT * info)
     {
-        __DAAL_MKLFN_CALL(lapack_, spotrf, (uplo, (MKL_INT *)p, ata, (MKL_INT *)ldata, (MKL_INT *)info));
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, spotrf, (uplo, (MKL_INT *)p, ata, (MKL_INT *)ldata, (MKL_INT *)info, 0));
     }
 
     static void xxpotrf(char * uplo, DAAL_INT * p, float * ata, DAAL_INT * ldata, DAAL_INT * info)
     {
         int old_threads = mkl_serv_set_num_threads_local(1);
-        __DAAL_MKLFN_CALL(lapack_, spotrf, (uplo, (MKL_INT *)p, ata, (MKL_INT *)ldata, (MKL_INT *)info));
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, spotrf, (uplo, (MKL_INT *)p, ata, (MKL_INT *)ldata, (MKL_INT *)info, 0));
         mkl_serv_set_num_threads_local(old_threads);
     }
 
     static void xpotrs(char * uplo, DAAL_INT * p, DAAL_INT * ny, float * ata, DAAL_INT * ldata, float * beta, DAAL_INT * ldaty, DAAL_INT * info)
     {
-        __DAAL_MKLFN_CALL(lapack_, spotrs, (uplo, (MKL_INT *)p, (MKL_INT *)ny, ata, (MKL_INT *)ldata, beta, (MKL_INT *)ldaty, (MKL_INT *)info));
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, spotrs, (uplo, (MKL_INT *)p, (MKL_INT *)ny, ata, (MKL_INT *)ldata, beta, (MKL_INT *)ldaty, (MKL_INT *)info, 0));
     }
 
     static void xxpotrs(char * uplo, DAAL_INT * p, DAAL_INT * ny, float * ata, DAAL_INT * ldata, float * beta, DAAL_INT * ldaty, DAAL_INT * info)
     {
         int old_threads = mkl_serv_set_num_threads_local(1);
-        __DAAL_MKLFN_CALL(lapack_, spotrs, (uplo, (MKL_INT *)p, (MKL_INT *)ny, ata, (MKL_INT *)ldata, beta, (MKL_INT *)ldaty, (MKL_INT *)info));
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, spotrs, (uplo, (MKL_INT *)p, (MKL_INT *)ny, ata, (MKL_INT *)ldata, beta, (MKL_INT *)ldaty, (MKL_INT *)info, 0));
         mkl_serv_set_num_threads_local(old_threads);
     }
 
     static void xpotri(char * uplo, DAAL_INT * p, float * ata, DAAL_INT * ldata, DAAL_INT * info)
     {
-        __DAAL_MKLFN_CALL(lapack_, spotri, (uplo, (MKL_INT *)p, ata, (MKL_INT *)ldata, (MKL_INT *)info));
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, spotri, (uplo, (MKL_INT *)p, ata, (MKL_INT *)ldata, (MKL_INT *)info, 0));
     }
 
     static void xxpotri(char * uplo, DAAL_INT * p, float * ata, DAAL_INT * ldata, DAAL_INT * info)
     {
         int old_threads = mkl_serv_set_num_threads_local(1);
-        __DAAL_MKLFN_CALL(lapack_, spotri, (uplo, (MKL_INT *)p, ata, (MKL_INT *)ldata, (MKL_INT *)info));
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, spotri, (uplo, (MKL_INT *)p, ata, (MKL_INT *)ldata, (MKL_INT *)info, 0));
         mkl_serv_set_num_threads_local(old_threads);
     }
 
     static void xgerqf(DAAL_INT * m, DAAL_INT * n, float * a, DAAL_INT * lda, float * tau, float * work, DAAL_INT * lwork, DAAL_INT * info)
     {
-        __DAAL_MKLFN_CALL(lapack_, sgerqf, ((MKL_INT *)m, (MKL_INT *)n, a, (MKL_INT *)lda, tau, work, (MKL_INT *)lwork, (MKL_INT *)info));
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, sgerqf, ((MKL_INT *)m, (MKL_INT *)n, a, (MKL_INT *)lda, tau, work, (MKL_INT *)lwork, (MKL_INT *)info));
     }
 
     static void xxgerqf(DAAL_INT * m, DAAL_INT * n, float * a, DAAL_INT * lda, float * tau, float * work, DAAL_INT * lwork, DAAL_INT * info)
     {
         int old_threads = mkl_serv_set_num_threads_local(1);
-        __DAAL_MKLFN_CALL(lapack_, sgerqf, ((MKL_INT *)m, (MKL_INT *)n, a, (MKL_INT *)lda, tau, work, (MKL_INT *)lwork, (MKL_INT *)info));
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, sgerqf, ((MKL_INT *)m, (MKL_INT *)n, a, (MKL_INT *)lda, tau, work, (MKL_INT *)lwork, (MKL_INT *)info));
         mkl_serv_set_num_threads_local(old_threads);
     }
 
     static void xormrq(char * side, char * trans, DAAL_INT * m, DAAL_INT * n, DAAL_INT * k, float * a, DAAL_INT * lda, float * tau, float * c,
                        DAAL_INT * ldc, float * work, DAAL_INT * lwork, DAAL_INT * info)
     {
-        __DAAL_MKLFN_CALL(lapack_, sormrq,
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, sormrq,
                           (side, trans, (MKL_INT *)m, (MKL_INT *)n, (MKL_INT *)k, a, (MKL_INT *)lda, tau, c, (MKL_INT *)ldc, work, (MKL_INT *)lwork,
-                           (MKL_INT *)info));
+                           (MKL_INT *)info, 0, 0));
     }
 
     static void xxormrq(char * side, char * trans, DAAL_INT * m, DAAL_INT * n, DAAL_INT * k, float * a, DAAL_INT * lda, float * tau, float * c,
                         DAAL_INT * ldc, float * work, DAAL_INT * lwork, DAAL_INT * info)
     {
         int old_threads = mkl_serv_set_num_threads_local(1);
-        __DAAL_MKLFN_CALL(lapack_, sormrq,
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, sormrq,
                           (side, trans, (MKL_INT *)m, (MKL_INT *)n, (MKL_INT *)k, a, (MKL_INT *)lda, tau, c, (MKL_INT *)ldc, work, (MKL_INT *)lwork,
-                           (MKL_INT *)info));
+                           (MKL_INT *)info, 0, 0));
         mkl_serv_set_num_threads_local(old_threads);
     }
 
     static void xtrtrs(char * uplo, char * trans, char * diag, DAAL_INT * n, DAAL_INT * nrhs, float * a, DAAL_INT * lda, float * b, DAAL_INT * ldb,
                        DAAL_INT * info)
     {
-        __DAAL_MKLFN_CALL(lapack_, strtrs, (uplo, trans, diag, (MKL_INT *)n, (MKL_INT *)nrhs, a, (MKL_INT *)lda, b, (MKL_INT *)ldb, (MKL_INT *)info));
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, strtrs, (uplo, trans, diag, (MKL_INT *)n, (MKL_INT *)nrhs, a, (MKL_INT *)lda, b, (MKL_INT *)ldb, (MKL_INT *)info, 0, 0, 0));
     }
 
     static void xxtrtrs(char * uplo, char * trans, char * diag, DAAL_INT * n, DAAL_INT * nrhs, float * a, DAAL_INT * lda, float * b, DAAL_INT * ldb,
                         DAAL_INT * info)
     {
         int old_threads = mkl_serv_set_num_threads_local(1);
-        __DAAL_MKLFN_CALL(lapack_, strtrs, (uplo, trans, diag, (MKL_INT *)n, (MKL_INT *)nrhs, a, (MKL_INT *)lda, b, (MKL_INT *)ldb, (MKL_INT *)info));
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, strtrs, (uplo, trans, diag, (MKL_INT *)n, (MKL_INT *)nrhs, a, (MKL_INT *)lda, b, (MKL_INT *)ldb, (MKL_INT *)info, 0, 0, 0));
         mkl_serv_set_num_threads_local(old_threads);
     }
 
     static void xpptrf(char * uplo, DAAL_INT * n, float * ap, DAAL_INT * info)
     {
-        __DAAL_MKLFN_CALL(lapack_, spptrf, (uplo, (MKL_INT *)n, ap, (MKL_INT *)info));
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, spptrf, (uplo, (MKL_INT *)n, ap, (MKL_INT *)info, 0));
     }
 
     static void xxpptrf(char * uplo, DAAL_INT * n, float * ap, DAAL_INT * info)
     {
         int old_threads = mkl_serv_set_num_threads_local(1);
-        __DAAL_MKLFN_CALL(lapack_, spptrf, (uplo, (MKL_INT *)n, ap, (MKL_INT *)info));
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, spptrf, (uplo, (MKL_INT *)n, ap, (MKL_INT *)info, 0));
         mkl_serv_set_num_threads_local(old_threads);
     }
 
     static void xgeqrf(DAAL_INT m, DAAL_INT n, float * a, DAAL_INT lda, float * tau, float * work, DAAL_INT lwork, DAAL_INT * info)
     {
-        __DAAL_MKLFN_CALL(lapack_, sgeqrf, ((MKL_INT *)(&m), (MKL_INT *)(&n), a, (MKL_INT *)(&lda), tau, work, (MKL_INT *)(&lwork), (MKL_INT *)info));
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, sgeqrf, ((MKL_INT *)(&m), (MKL_INT *)(&n), a, (MKL_INT *)(&lda), tau, work, (MKL_INT *)(&lwork), (MKL_INT *)info));
     }
 
     static void xxgeqrf(DAAL_INT m, DAAL_INT n, float * a, DAAL_INT lda, float * tau, float * work, DAAL_INT lwork, DAAL_INT * info)
     {
         int old_threads = mkl_serv_set_num_threads_local(1);
-        __DAAL_MKLFN_CALL(lapack_, sgeqrf, ((MKL_INT *)(&m), (MKL_INT *)(&n), a, (MKL_INT *)(&lda), tau, work, (MKL_INT *)(&lwork), (MKL_INT *)info));
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, sgeqrf, ((MKL_INT *)(&m), (MKL_INT *)(&n), a, (MKL_INT *)(&lda), tau, work, (MKL_INT *)(&lwork), (MKL_INT *)info));
         mkl_serv_set_num_threads_local(old_threads);
     }
 
     static void xgeqp3(const DAAL_INT m, const DAAL_INT n, float * a, const DAAL_INT lda, DAAL_INT * jpvt, float * tau, float * work,
                        const DAAL_INT lwork, DAAL_INT * info)
     {
-        __DAAL_MKLFN_CALL(lapack_, sgeqp3,
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, sgeqp3,
                           ((MKL_INT *)(&m), (MKL_INT *)(&n), a, (MKL_INT *)(&lda), (MKL_INT *)jpvt, tau, work, (MKL_INT *)(&lwork), (MKL_INT *)info));
     }
 
     static void xxgeqp3(DAAL_INT m, DAAL_INT n, float * a, DAAL_INT lda, DAAL_INT * jpvt, float * tau, float * work, DAAL_INT lwork, DAAL_INT * info)
     {
         int old_threads = mkl_serv_set_num_threads_local(1);
-        __DAAL_MKLFN_CALL(lapack_, sgeqp3,
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, sgeqp3,
                           ((MKL_INT *)(&m), (MKL_INT *)(&n), a, (MKL_INT *)(&lda), (MKL_INT *)jpvt, tau, work, (MKL_INT *)(&lwork), (MKL_INT *)info));
         mkl_serv_set_num_threads_local(old_threads);
     }
@@ -482,14 +482,14 @@ struct MklLapack<float, cpu>
     static void xorgqr(const DAAL_INT m, const DAAL_INT n, const DAAL_INT k, float * a, const DAAL_INT lda, const float * tau, float * work,
                        const DAAL_INT lwork, DAAL_INT * info)
     {
-        __DAAL_MKLFN_CALL(lapack_, sorgqr,
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, sorgqr,
                           ((MKL_INT *)(&m), (MKL_INT *)(&n), (MKL_INT *)(&k), a, (MKL_INT *)(&lda), tau, work, (MKL_INT *)(&lwork), (MKL_INT *)info));
     }
 
     static void xxorgqr(DAAL_INT m, DAAL_INT n, DAAL_INT k, float * a, DAAL_INT lda, float * tau, float * work, DAAL_INT lwork, DAAL_INT * info)
     {
         int old_threads = mkl_serv_set_num_threads_local(1);
-        __DAAL_MKLFN_CALL(lapack_, sorgqr,
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, sorgqr,
                           ((MKL_INT *)(&m), (MKL_INT *)(&n), (MKL_INT *)(&k), a, (MKL_INT *)(&lda), tau, work, (MKL_INT *)(&lwork), (MKL_INT *)info));
         mkl_serv_set_num_threads_local(old_threads);
     }
@@ -497,54 +497,54 @@ struct MklLapack<float, cpu>
     static void xgesvd(char jobu, char jobvt, DAAL_INT m, DAAL_INT n, float * a, DAAL_INT lda, float * s, float * u, DAAL_INT ldu, float * vt,
                        DAAL_INT ldvt, float * work, DAAL_INT lwork, DAAL_INT * info)
     {
-        __DAAL_MKLFN_CALL(lapack_, sgesvd,
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, sgesvd,
                           (&jobu, &jobvt, (MKL_INT *)(&m), (MKL_INT *)(&n), a, (MKL_INT *)(&lda), s, u, (MKL_INT *)(&ldu), vt, (MKL_INT *)(&ldvt),
-                           work, (MKL_INT *)(&lwork), (MKL_INT *)info));
+                           work, (MKL_INT *)(&lwork), (MKL_INT *)info, 0, 0));
     }
 
     static void xxgesvd(char jobu, char jobvt, DAAL_INT m, DAAL_INT n, float * a, DAAL_INT lda, float * s, float * u, DAAL_INT ldu, float * vt,
                         DAAL_INT ldvt, float * work, DAAL_INT lwork, DAAL_INT * info)
     {
         int old_threads = mkl_serv_set_num_threads_local(1);
-        __DAAL_MKLFN_CALL(lapack_, sgesvd,
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, sgesvd,
                           (&jobu, &jobvt, (MKL_INT *)(&m), (MKL_INT *)(&n), a, (MKL_INT *)(&lda), s, u, (MKL_INT *)(&ldu), vt, (MKL_INT *)(&ldvt),
-                           work, (MKL_INT *)(&lwork), (MKL_INT *)info));
+                           work, (MKL_INT *)(&lwork), (MKL_INT *)info, 0, 0));
         mkl_serv_set_num_threads_local(old_threads);
     }
 
     static void xsyevd(char * jobz, char * uplo, DAAL_INT * n, float * a, DAAL_INT * lda, float * w, float * work, DAAL_INT * lwork, DAAL_INT * iwork,
                        DAAL_INT * liwork, DAAL_INT * info)
     {
-        __DAAL_MKLFN_CALL(
+        __DAAL_MKLFN_CALL_LAPACK(
             lapack_, ssyevd,
-            (jobz, uplo, (MKL_INT *)n, a, (MKL_INT *)lda, w, work, (MKL_INT *)lwork, (MKL_INT *)iwork, (MKL_INT *)liwork, (MKL_INT *)info));
+            (jobz, uplo, (MKL_INT *)n, a, (MKL_INT *)lda, w, work, (MKL_INT *)lwork, (MKL_INT *)iwork, (MKL_INT *)liwork, (MKL_INT *)info, 0, 0));
     }
 
     static void xxsyevd(char * jobz, char * uplo, DAAL_INT * n, float * a, DAAL_INT * lda, float * w, float * work, DAAL_INT * lwork,
                         DAAL_INT * iwork, DAAL_INT * liwork, DAAL_INT * info)
     {
         int old_threads = mkl_serv_set_num_threads_local(1);
-        __DAAL_MKLFN_CALL(
+        __DAAL_MKLFN_CALL_LAPACK(
             lapack_, ssyevd,
-            (jobz, uplo, (MKL_INT *)n, a, (MKL_INT *)lda, w, work, (MKL_INT *)lwork, (MKL_INT *)iwork, (MKL_INT *)liwork, (MKL_INT *)info));
+            (jobz, uplo, (MKL_INT *)n, a, (MKL_INT *)lda, w, work, (MKL_INT *)lwork, (MKL_INT *)iwork, (MKL_INT *)liwork, (MKL_INT *)info, 0, 0));
         mkl_serv_set_num_threads_local(old_threads);
     }
 
     static void xormqr(char * side, char * trans, DAAL_INT * m, DAAL_INT * n, DAAL_INT * k, float * a, DAAL_INT * lda, float * tau, float * c,
                        DAAL_INT * ldc, float * work, DAAL_INT * lwork, DAAL_INT * info)
     {
-        __DAAL_MKLFN_CALL(lapack_, sormqr,
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, sormqr,
                           (side, trans, (MKL_INT *)m, (MKL_INT *)n, (MKL_INT *)k, a, (MKL_INT *)lda, tau, c, (MKL_INT *)ldc, work, (MKL_INT *)lwork,
-                           (MKL_INT *)info));
+                           (MKL_INT *)info, 0, 0));
     }
 
     static void xxormqr(char * side, char * trans, DAAL_INT * m, DAAL_INT * n, DAAL_INT * k, float * a, DAAL_INT * lda, float * tau, float * c,
                         DAAL_INT * ldc, float * work, DAAL_INT * lwork, DAAL_INT * info)
     {
         int old_threads = mkl_serv_set_num_threads_local(1);
-        __DAAL_MKLFN_CALL(lapack_, sormqr,
+        __DAAL_MKLFN_CALL_LAPACK(lapack_, sormqr,
                           (side, trans, (MKL_INT *)m, (MKL_INT *)n, (MKL_INT *)k, a, (MKL_INT *)lda, tau, c, (MKL_INT *)ldc, work, (MKL_INT *)lwork,
-                           (MKL_INT *)info));
+                           (MKL_INT *)info, 0, 0));
         mkl_serv_set_num_threads_local(old_threads);
     }
 };
