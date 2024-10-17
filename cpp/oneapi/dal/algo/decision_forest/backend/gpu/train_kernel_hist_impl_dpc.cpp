@@ -394,16 +394,16 @@ sycl::event train_kernel_hist_impl<Float, Bin, Index, Task>::gen_initial_tree_or
         Index* const selected_row_ptr =
             ctx.distr_mode_ ? selected_row_host.get_mutable_data() : nullptr;
         Index* const node_list_ptr = node_list_host.get_mutable_data();
-
+        pr::oneapi_rng<Index> rn_gen;
         for (Index node_idx = 0; node_idx < node_count; ++node_idx) {
-            pr::rng<Index> rn_gen;
             Index* gen_row_idx_global_ptr =
                 selected_row_global_ptr + ctx.selected_row_total_count_ * node_idx;
-            rn_gen.uniform(ctx.selected_row_total_count_,
-                           gen_row_idx_global_ptr,
-                           rng_engine_list[engine_offset + node_idx].get_state(),
-                           0,
-                           ctx.row_total_count_);
+            rn_gen.uniform_gpu(queue_,
+                               ctx.selected_row_total_count_,
+                               gen_row_idx_global_ptr,
+                               rng_engine_list[engine_offset + node_idx],
+                               0,
+                               ctx.row_total_count_);
 
             if (ctx.distr_mode_) {
                 Index* node_ptr = node_list_ptr + node_idx * impl_const_t::node_prop_count_;
@@ -483,15 +483,15 @@ train_kernel_hist_impl<Float, Bin, Index, Task>::gen_feature_list(
 
     auto node_vs_tree_map_list_host = node_vs_tree_map_list.to_host(queue_);
 
-    pr::rng<Index> rn_gen;
+    pr::daal_rng<Index> rn_gen;
     auto tree_map_ptr = node_vs_tree_map_list_host.get_mutable_data();
     if (ctx.selected_ftr_count_ != ctx.column_count_) {
         for (Index node = 0; node < node_count; ++node) {
-            rn_gen.uniform_without_replacement(
+            rn_gen.uniform_without_replacement_cpu(
                 ctx.selected_ftr_count_,
                 selected_features_host_ptr + node * ctx.selected_ftr_count_,
                 selected_features_host_ptr + (node + 1) * ctx.selected_ftr_count_,
-                rng_engine_list[tree_map_ptr[node]].get_state(),
+                rng_engine_list[tree_map_ptr[node]].get_cpu_engine_state(),
                 0,
                 ctx.column_count_);
         }
@@ -524,7 +524,7 @@ train_kernel_hist_impl<Float, Bin, Index, Task>::gen_random_thresholds(
 
     auto node_vs_tree_map_list_host = node_vs_tree_map.to_host(queue_);
 
-    pr::rng<Float> rn_gen;
+    pr::daal_rng<Float> rn_gen;
     auto tree_map_ptr = node_vs_tree_map_list_host.get_mutable_data();
 
     // Create arrays for random generated bins
@@ -537,11 +537,11 @@ train_kernel_hist_impl<Float, Bin, Index, Task>::gen_random_thresholds(
 
     // Generate random bins for selected features
     for (Index node = 0; node < node_count; ++node) {
-        rn_gen.uniform(ctx.selected_ftr_count_,
-                       random_bins_host_ptr + node * ctx.selected_ftr_count_,
-                       rng_engine_list[tree_map_ptr[node]].get_state(),
-                       0.0f,
-                       1.0f);
+        rn_gen.uniform_cpu(ctx.selected_ftr_count_,
+                           random_bins_host_ptr + node * ctx.selected_ftr_count_,
+                           rng_engine_list[tree_map_ptr[node]].get_cpu_engine_state(),
+                           0.0f,
+                           1.0f);
     }
     auto event_rnd_generate =
         random_bins_com.assign_from_host(queue_, random_bins_host_ptr, random_bins_com.get_count());
@@ -1660,12 +1660,13 @@ sycl::event train_kernel_hist_impl<Float, Bin, Index, Task>::compute_results(
 
             const Float div1 = Float(1) / Float(built_tree_count + tree_idx_in_block + 1);
 
-            pr::rng<Index> rn_gen;
+            pr::daal_rng<Index> rn_gen;
 
             for (Index column_idx = 0; column_idx < ctx.column_count_; ++column_idx) {
-                rn_gen.shuffle(oob_row_count,
-                               permutation_ptr,
-                               engine_arr[built_tree_count + tree_idx_in_block].get_state());
+                rn_gen.shuffle_cpu(
+                    oob_row_count,
+                    permutation_ptr,
+                    engine_arr[built_tree_count + tree_idx_in_block].get_cpu_engine_state());
                 const Float oob_err_perm = compute_oob_error_perm(ctx,
                                                                   model_manager,
                                                                   data_host,
@@ -1858,10 +1859,11 @@ train_result<Task> train_kernel_hist_impl<Float, Bin, Index, Task>::operator()(
 
     de::check_mul_overflow<std::size_t>((ctx.tree_count_ - 1), skip_num);
 
-    pr::engine_collection collection(ctx.tree_count_, desc.get_seed());
-    rng_engine_list_t engine_arr = collection([&](std::size_t i, std::size_t& skip) {
-        skip = i * skip_num;
-    });
+    pr::engine_collection<std::int64_t, pr::engine_list::mcg59> collection(queue_,
+                                                                           ctx.tree_count_,
+                                                                           desc.get_seed());
+
+    rng_engine_list_t engine_arr = collection.get_engines();
 
     pr::ndarray<Float, 1> node_imp_decrease_list;
 

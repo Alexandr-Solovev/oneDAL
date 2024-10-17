@@ -26,6 +26,8 @@
 
 namespace oneapi::dal::backend::primitives {
 
+enum class engine_list { mt2203, mcg59, mt19937 };
+
 enum class rng_method {
     uniform,
     uniform_bits_32,
