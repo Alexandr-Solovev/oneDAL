@@ -140,6 +140,8 @@ Status KNNClassificationTrainBatchKernel<algorithmFpType, training::defaultDense
 {
     Status status;
 
+    auto oldThreads = services::Environment::getInstance()->getNumberOfThreads();
+    services::Environment::getInstance()->setNumberOfThreads(1);
     typedef daal::internal::MathInst<algorithmFpType, cpu> Math;
     typedef BoundingBox<algorithmFpType> BBox;
 
@@ -160,21 +162,19 @@ Status KNNClassificationTrainBatchKernel<algorithmFpType, training::defaultDense
 
     Queue<BuildNode, cpu> q;
     BBox * bboxQ    = nullptr;
-    auto oldThreads = services::Environment::getInstance()->getNumberOfThreads();
     DAAL_CHECK_STATUS(status, buildFirstPartOfKDTree(q, bboxQ, *x, *r, indexes, engine));
     // Temporary workaround for threading issues in `buildSecondPartOfKDTree()`
     // Fix to be provided in https://github.com/uxlfoundation/oneDAL/pull/2925
-    services::Environment::getInstance()->setNumberOfThreads(1);
     DAAL_CHECK_STATUS(status, buildSecondPartOfKDTree(q, bboxQ, *x, *r, indexes, engine));
-    services::Environment::getInstance()->setNumberOfThreads(oldThreads);
     DAAL_CHECK_STATUS(status, rearrangePoints(*x, indexes));
     if (y)
     {
         DAAL_CHECK_STATUS(status, rearrangePoints(*y, indexes));
     }
-
+    
     daal_free(bboxQ);
     bboxQ = nullptr;
+    services::Environment::getInstance()->setNumberOfThreads(oldThreads);
     return status;
 }
 

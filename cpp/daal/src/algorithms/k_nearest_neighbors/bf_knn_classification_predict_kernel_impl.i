@@ -43,6 +43,8 @@ services::Status KNNClassificationPredictKernel<algorithmFPType, cpu>::compute(c
                                                                                NumericTable * label, NumericTable * indices, NumericTable * distances,
                                                                                const KernelParameter * par)
 {
+    auto oldThreads = services::Environment::getInstance()->getNumberOfThreads();
+    services::Environment::getInstance()->setNumberOfThreads(1);
     const Model * const convModel        = static_cast<const Model *>(m);
     NumericTableConstPtr trainDataTable  = convModel->impl()->getData();
     NumericTableConstPtr trainLabelTable = convModel->impl()->getLabels();
@@ -59,6 +61,7 @@ services::Status KNNClassificationPredictKernel<algorithmFPType, cpu>::compute(c
     bfnn.kNeighbors(k, nClasses, voteWeights, resultsToCompute, resultsToEvaluate, trainDataTable.get(), data, trainLabelTable.get(), label, indices,
                     distances, pairwiseDistance, minkowskiDegree);
 
+    services::Environment::getInstance()->setNumberOfThreads(oldThreads);
     return services::Status();
 }
 

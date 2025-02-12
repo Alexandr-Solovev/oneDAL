@@ -123,6 +123,8 @@ Status KNNClassificationPredictKernel<algorithmFpType, defaultDense, cpu>::compu
 {
     Status status;
 
+    auto oldThreads = services::Environment::getInstance()->getNumberOfThreads();
+    services::Environment::getInstance()->setNumberOfThreads(1);
     typedef GlobalNeighbors<algorithmFpType, cpu> Neighbors;
     typedef Heap<Neighbors, cpu> MaxHeap;
     typedef kdtree_knn_classification::internal::Stack<SearchNode<algorithmFpType>, cpu> SearchStack;
@@ -290,6 +292,7 @@ Status KNNClassificationPredictKernel<algorithmFpType, defaultDense, cpu>::compu
             service_scalable_free<Local, cpu>(ptr);
         }
     });
+    services::Environment::getInstance()->setNumberOfThreads(oldThreads);
     return status;
 }
 
