@@ -241,7 +241,8 @@ public:
                   std::int64_t seed = 777,
                   engine_type method = engine_type::mt2203,
                   std::int64_t idx = 0)
-            : q(queue) {
+            : q(queue),
+             default_engine(queue, seed) {
         switch (method) {
             case engine_type::mt2203:
                 host_engine_ = daal::algorithms::engines::mt2203::Batch<>::create(seed);
@@ -265,6 +266,7 @@ public:
                 break;
             default: throw std::invalid_argument("Unsupported engine type 1");
         }
+        //default_engine = oneapi::mkl::rng::philox4x32x10(queue, seed);
         impl_ =
             dynamic_cast<daal::algorithms::engines::internal::BatchBaseImpl*>(host_engine_.get());
         if (!impl_) {
@@ -299,6 +301,12 @@ public:
         return dpc_engine_;
     }
 
+        /// Retrieves the base pointer of the device rng engine.
+    /// @return Shared pointer to the device rng engine base.
+    auto& get_device_engine() {
+        return default_engine;
+    }
+
     /// Advances the rng sequence on the CPU by a specified number of steps.
     /// @param[in] nSkip The number of steps to skip.
     void skip_ahead_cpu(size_t nSkip) {
@@ -309,6 +317,7 @@ public:
     /// @param[in] nSkip The number of steps to skip.
     void skip_ahead_gpu(size_t nSkip) {
         dpc_engine_->skip_ahead_gpu(nSkip);
+        mkl::rng::skip_ahead(default_engine, nSkip);
     }
 
     /// Advances the rng sequence on both CPU and GPU by a specified number of steps.
@@ -328,6 +337,7 @@ private:
     sycl::queue q;
     daal::algorithms::engines::EnginePtr host_engine_;
     std::shared_ptr<gen_base> dpc_engine_;
+    oneapi::mkl::rng::philox4x32x10 default_engine;
     daal::algorithms::engines::internal::BatchBaseImpl* impl_;
 };
 
@@ -360,7 +370,6 @@ void uniform(std::int64_t count, Type* dst, device_engine& engine_, Type a, Type
 template <typename Type>
 void uniform_without_replacement(std::int64_t count,
                                  Type* dst,
-                                 Type* buffer,
                                  device_engine& engine_,
                                  Type a,
                                  Type b) {
@@ -369,7 +378,7 @@ void uniform_without_replacement(std::int64_t count,
         throw domain_error(dal::detail::error_messages::unsupported_data_type());
     }
     void* state = engine_.get_host_engine_state();
-    uniform_dispatcher::uniform_without_replacement_by_cpu<Type>(count, dst, buffer, state, a, b);
+    uniform_dispatcher::uniform_without_replacement_by_cpu<Type>(count, dst, state, a, b);
     engine_.skip_ahead_gpu(count);
 }
 
@@ -425,7 +434,6 @@ template <typename Type>
 sycl::event uniform_without_replacement(sycl::queue& queue,
                                         std::int64_t count,
                                         Type* dst,
-                                        Type* buffer,
                                         device_engine& engine_,
                                         Type a,
                                         Type b,

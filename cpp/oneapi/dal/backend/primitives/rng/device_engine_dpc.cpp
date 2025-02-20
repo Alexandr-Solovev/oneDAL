@@ -23,41 +23,41 @@ namespace oneapi::dal::backend::primitives {
 
 namespace bk = oneapi::dal::backend;
 
-template <typename Distribution, typename Type>
-sycl::event generate_rng(Distribution& distr,
-                         device_engine& engine_,
-                         std::int64_t count,
-                         Type* dst,
-                         const event_vector& deps) {
-    switch (engine_.get_device_engine_base_ptr()->get_engine_type()) {
-        case engine_type::mt2203: {
-            auto& device_engine =
-                *(dynamic_cast<gen_mt2203*>(engine_.get_device_engine_base_ptr().get()))->get();
-            return oneapi::mkl::rng::generate(distr, device_engine, count, dst, deps);
-        }
-        case engine_type::mcg59: {
-            auto& device_engine =
-                *(dynamic_cast<gen_mcg59*>(engine_.get_device_engine_base_ptr().get()))->get();
-            return oneapi::mkl::rng::generate(distr, device_engine, count, dst, deps);
-        }
-        case engine_type::mrg32k3a: {
-            auto& device_engine =
-                *(dynamic_cast<gen_mrg32k*>(engine_.get_device_engine_base_ptr().get()))->get();
-            return oneapi::mkl::rng::generate(distr, device_engine, count, dst, deps);
-        }
-        case engine_type::philox4x32x10: {
-            auto& device_engine =
-                *(dynamic_cast<gen_philox*>(engine_.get_device_engine_base_ptr().get()))->get();
-            return oneapi::mkl::rng::generate(distr, device_engine, count, dst, deps);
-        }
-        case engine_type::mt19937: {
-            auto& device_engine =
-                *(dynamic_cast<gen_mt19937*>(engine_.get_device_engine_base_ptr().get()))->get();
-            return oneapi::mkl::rng::generate(distr, device_engine, count, dst, deps);
-        }
-        default: throw std::runtime_error("Unsupported engine type in generate_rng");
-    }
-}
+// template <typename Distribution, typename Type>
+// sycl::event generate_rng(Distribution& distr,
+//                          device_engine& engine_,
+//                          std::int64_t count,
+//                          Type* dst,
+//                          const event_vector& deps) {
+//     switch (engine_.get_device_engine_base_ptr()->get_engine_type()) {
+//         case engine_type::mt2203: {
+//             auto& device_engine =
+//                 *(dynamic_cast<gen_mt2203*>(engine_.get_device_engine_base_ptr().get()))->get();
+//             return oneapi::mkl::rng::generate(distr, device_engine, count, dst, deps);
+//         }
+//         case engine_type::mcg59: {
+//             auto& device_engine =
+//                 *(dynamic_cast<gen_mcg59*>(engine_.get_device_engine_base_ptr().get()))->get();
+//             return oneapi::mkl::rng::generate(distr, device_engine, count, dst, deps);
+//         }
+//         case engine_type::mrg32k3a: {
+//             auto& device_engine =
+//                 *(dynamic_cast<gen_mrg32k*>(engine_.get_device_engine_base_ptr().get()))->get();
+//             return oneapi::mkl::rng::generate(distr, device_engine, count, dst, deps);
+//         }
+//         case engine_type::philox4x32x10: {
+//             auto& device_engine =
+//                 *(dynamic_cast<gen_philox*>(engine_.get_device_engine_base_ptr().get()))->get();
+//             return oneapi::mkl::rng::generate(distr, device_engine, count, dst, deps);
+//         }
+//         case engine_type::mt19937: {
+//             auto& device_engine =
+//                 *(dynamic_cast<gen_mt19937*>(engine_.get_device_engine_base_ptr().get()))->get();
+//             return oneapi::mkl::rng::generate(distr, device_engine, count, dst, deps);
+//         }
+//         default: throw std::runtime_error("Unsupported engine type in generate_rng");
+//     }
+// }
 
 /// Generates uniformly distributed random numbers on the GPU.
 /// @tparam Type The data type of the generated numbers.
@@ -81,7 +81,7 @@ sycl::event uniform(sycl::queue& queue,
     }
     oneapi::mkl::rng::uniform<Type> distr(a, b);
     engine_.skip_ahead_cpu(count);
-    auto event = generate_rng(distr, engine_, count, dst, deps);
+    auto event = oneapi::mkl::rng::generate(distr, engine_.get_device_engine(), count, dst, deps);
     return event;
 }
 
@@ -99,7 +99,6 @@ template <typename Type>
 sycl::event uniform_without_replacement(sycl::queue& queue,
                                         std::int64_t count,
                                         Type* dst,
-                                        Type* buffer,
                                         device_engine& engine_,
                                         Type a,
                                         Type b,
@@ -110,7 +109,7 @@ sycl::event uniform_without_replacement(sycl::queue& queue,
     }
     void* state = engine_.get_host_engine_state();
     engine_.skip_ahead_gpu(count);
-    uniform_dispatcher::uniform_without_replacement_by_cpu<Type>(count, dst, buffer, state, a, b);
+    uniform_dispatcher::uniform_without_replacement_by_cpu<Type>(count, dst, state, a, b);
     auto event = queue.submit([&](sycl::handler& h) {
         h.depends_on(deps);
     });
@@ -209,7 +208,6 @@ INSTANTIATE_UNIFORM(std::int32_t)
     template ONEDAL_EXPORT sycl::event uniform_without_replacement(sycl::queue& queue,     \
                                                                    std::int64_t count_,    \
                                                                    F* dst,                 \
-                                                                   F* buff,                \
                                                                    device_engine& engine_, \
                                                                    F a,                    \
                                                                    F b,                    \
