@@ -20,7 +20,7 @@
 #include "oneapi/dal/backend/interop/common.hpp"
 #include "oneapi/dal/backend/interop/error_converter.hpp"
 #include "oneapi/dal/backend/interop/table_conversion.hpp"
-
+#include <iostream>
 #include "oneapi/dal/table/row_accessor.hpp"
 
 namespace oneapi::dal::covariance::backend {
@@ -57,7 +57,7 @@ static compute_result<Task> call_daal_kernel(const context_cpu& ctx,
                                              const detail::compute_parameters<Task>& params,
                                              const table& data) {
     bool is_mean_computed = false;
-
+    std::cout << "cpu branch code" << std::endl;
     const std::int64_t component_count = data.get_column_count();
 
     daal_covariance::Parameter daal_parameter;

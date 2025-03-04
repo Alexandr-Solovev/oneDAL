@@ -138,7 +138,7 @@ inline auto dispatch_by_device(const detail::data_parallel_policy& policy,
                                GpuBranch&& gpu_branch) {
     const auto device = policy.get_queue().get_device();
     if (device.is_cpu()) {
-        return cpu_branch();
+        return gpu_branch();
     }
     else if (device.is_gpu()) {
         return gpu_branch();

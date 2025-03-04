@@ -27,6 +27,7 @@
 #include "oneapi/dal/backend/primitives/reduction.hpp"
 #include "oneapi/dal/backend/primitives/stat.hpp"
 #include "oneapi/dal/backend/primitives/blas.hpp"
+#include <iostream>
 
 #ifdef ONEDAL_DATA_PARALLEL
 
@@ -49,7 +50,13 @@ result_t compute_kernel_dense_impl<Float>::operator()(const descriptor_t& desc,
                                                       const parameters_t& params,
                                                       const input_t& input) {
     ONEDAL_ASSERT(input.get_data().has_data());
-
+    std::cout << "gpu branch code" << std::endl;
+    const std::uint64_t device_global_mem_size =
+        q_.get_device().get_info<sycl::info::device::global_mem_size>();
+    const std::uint64_t device_max_mem_alloc_size =
+        q_.get_device().get_info<sycl::info::device::max_mem_alloc_size>();
+    std::cout << "1st memory is" << device_global_mem_size << std::endl;
+    std::cout << "2nd memory is" << device_max_mem_alloc_size << std::endl;
     const auto data = input.get_data();
 
     const std::int64_t row_count = data.get_row_count();
