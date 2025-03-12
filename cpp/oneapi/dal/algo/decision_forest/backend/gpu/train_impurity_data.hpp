@@ -45,6 +45,12 @@ struct impurity_data<Float, Index, task::classification> {
 
     impurity_data() = default;
     ~impurity_data() = default;
+
+    impurity_data(const dal::backend::primitives::ndarray<Float, 1>& imp_list,
+                  const dal::backend::primitives::ndarray<Index, 1>& class_hist_list)
+            : imp_list_(imp_list),
+              class_hist_list_(class_hist_list) {}
+
     impurity_data(const sycl::queue& q, Index node_count, Index class_count)
             : imp_list_(
                   pr::ndarray<Float, 1>::empty(q,
@@ -69,6 +75,14 @@ struct impurity_data<Float, Index, task::classification> {
         return imp_data_host;
     }
 
+    dal::backend::primitives::ndarray<Float, 1>& get_imp_list() {
+        return imp_list_;
+    }
+
+    dal::backend::primitives::ndarray<Index, 1>& get_class_hist_list() {
+        return class_hist_list_;
+    }
+
     dal::backend::primitives::ndarray<Float, 1> imp_list_;
     dal::backend::primitives::ndarray<Index, 1> class_hist_list_;
 };
@@ -82,6 +96,10 @@ struct impurity_data<Float, Index, task::regression> {
 
     impurity_data() = default;
     ~impurity_data() = default;
+
+    impurity_data(const dal::backend::primitives::ndarray<Float, 1>& imp_list)
+            : imp_list_(imp_list) {}
+
     impurity_data(const sycl::queue& q, Index node_count)
             : imp_list_(
                   pr::ndarray<Float, 1>::empty(q,
@@ -98,6 +116,10 @@ struct impurity_data<Float, Index, task::regression> {
         imp_data_t imp_data_host;
         imp_data_host.imp_list_ = imp_list_.to_host(q, deps);
         return imp_data_host;
+    }
+
+    dal::backend::primitives::ndarray<Float, 1>& get_imp_list() {
+        return imp_list_;
     }
 
     dal::backend::primitives::ndarray<Float, 1> imp_list_;

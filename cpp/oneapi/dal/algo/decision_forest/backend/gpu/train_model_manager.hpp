@@ -83,10 +83,12 @@ public:
         return node_list_
             .get_data()[node_idx * impl_const_t::node_prop_count_ + impl_const_t::ind_grc];
     }
+
     Index get_feature_id(Index node_idx) const {
         return node_list_
             .get_data()[node_idx * impl_const_t::node_prop_count_ + impl_const_t::ind_fid];
     }
+
     Index get_feature_bin(Index node_idx) const {
         return node_list_
             .get_data()[node_idx * impl_const_t::node_prop_count_ + impl_const_t::ind_bin];
@@ -124,8 +126,25 @@ public:
     bool is_leaf(Index node_idx) const {
         return get_feature_id(node_idx) == impl_const_t::leaf_mark_;
     }
+
     bool has_unordered_feature(Index node_idx) const {
         return false; /* unordered features are not supported yet */
+    }
+
+    dal::backend::primitives::ndarray<Index, 1> get_node_list() const {
+        return node_list_;
+    }
+
+    imp_data_t get_imp_data_list() const {
+        return imp_data_list_;
+    }
+
+    const context_t& get_context() const {
+        return ctx_;
+    }
+
+    Index get_node_count_private() const {
+        return node_count_;
     }
 
 private:
@@ -155,6 +174,7 @@ public:
               daal_model_interface_ptr_(daal_model_ptr_),
               tree_list_(tree_count),
               ctx_(ctx) {
+        std::cout << "model_manager size" << tree_count << std::endl;
         daal_model_ptr_->resize(tree_count);
     }
 

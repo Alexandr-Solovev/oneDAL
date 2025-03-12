@@ -54,6 +54,7 @@ class train_kernel_hist_impl {
     using msg = dal::detail::error_messages;
     using comm_t = bk::communicator<spmd::device_memory_access::usm>;
     using node_t = node<Index>;
+    using tree_level_record_t = tree_level_record<Float, Index, Task>;
 
 public:
     using hist_type_t = typename task_types<Float, Index, Task>::hist_type_t;
@@ -403,7 +404,16 @@ private:
                                           Index part_hist_count,
                                           Index node_count,
                                           const bk::event_vector& deps = {});
+    std::vector<pr::ndarray<Float, 1>> merge_bin_borders(
+        const train_context_t& ctx,
+        std::vector<pr::ndarray<Float, 1>> bin_borders_host_local,
+        std::int64_t node_count,
+        std::int64_t max_bins_);
 
+    std::vector<tree_level_record<Float, Index, Task>> merge_level_records(
+        const train_context_t& ctx,
+        std::vector<tree_level_record_t>& local_tree_level,
+        std::int64_t node_count);
     /// Computes histogram statistics (count and sum) partially. It is an internal auxiliary kernel,
     /// which is used in the `compute_histogram` kernel.
     ///

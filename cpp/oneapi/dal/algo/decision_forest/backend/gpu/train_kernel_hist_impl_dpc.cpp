@@ -19,6 +19,7 @@
 #include "oneapi/dal/table/row_accessor.hpp"
 #include "oneapi/dal/detail/profiler.hpp"
 #include "oneapi/dal/algo/decision_forest/backend/gpu/train_helpers.hpp"
+#include <iostream>
 
 #ifdef ONEDAL_DATA_PARALLEL
 
@@ -146,7 +147,8 @@ void train_kernel_hist_impl<Float, Bin, Index, Task>::init_params(train_context_
                                                                   const table& data,
                                                                   const table& responses,
                                                                   const table& weights) {
-    ctx.distr_mode_ = (comm_.get_rank_count() > 1);
+    ctx.distr_mode_ = false;
+
     ctx.use_private_mem_buf_ = true;
     ctx.is_weighted_ = (weights.get_row_count() == data.get_row_count());
 
@@ -1677,6 +1679,238 @@ sycl::event train_kernel_hist_impl<Float, Bin, Index, Task>::compute_results(
 }
 
 template <typename Float, typename Bin, typename Index, typename Task>
+std::vector<tree_level_record<Float, Index, Task>>
+train_kernel_hist_impl<Float, Bin, Index, Task>::merge_level_records(
+    const train_context_t& ctx,
+    std::vector<tree_level_record_t>& local_tree_level,
+    std::int64_t node_count_) {
+    auto local_row_count = local_tree_level.size();
+
+    std::int64_t global_row_count = local_row_count;
+
+    auto& comm = comm_;
+
+    std::int64_t rank_count = comm.get_rank_count();
+
+    auto current_rank = comm.get_rank();
+
+    auto global_rank_offsets = array<std::int64_t>::zeros(rank_count);
+    global_rank_offsets.get_mutable_data()[current_rank] = local_row_count;
+    { comm.allreduce(global_rank_offsets, spmd::reduce_op::sum).wait(); }
+    { comm.allreduce(global_row_count, spmd::reduce_op::sum).wait(); }
+    // std::cout<<"here size global="<<global_row_count<<std::endl;
+    std::int64_t local_offset = 0;
+
+    for (std::int64_t i = 0; i < current_rank; i++) {
+        ONEDAL_ASSERT(global_rank_offsets.get_data()[i] >= 0);
+        local_offset += global_rank_offsets.get_data()[i];
+    }
+
+    auto node_count = 1;
+    for (int i = local_offset; i < static_cast<int>(local_offset + local_row_count); i++) {
+        auto local_idx = i - local_offset;
+        auto node_count_tmp = local_tree_level.at(local_idx).get_node_count_private();
+        if (node_count < node_count_tmp) {
+            node_count = node_count_tmp;
+        }
+    }
+    { comm.allreduce(node_count, spmd::reduce_op::max).wait(); }
+    auto node_vec_column_count = node_count * impl_const_t::node_prop_count_;
+    auto node_list_vec_global =
+        pr::ndarray<Float, 2>::empty({ global_row_count, node_vec_column_count });
+
+    auto node_list_vec_global_ptr = node_list_vec_global.get_mutable_data();
+    for (int i = local_offset; i < static_cast<int>(local_offset + local_row_count); i++) {
+        auto local_idx = i - local_offset;
+        auto node_list_src = local_tree_level.at(local_idx).get_node_list();
+        auto node_list_src_ptr = node_list_src.get_data();
+        for (std::int64_t j = 0; j < node_vec_column_count; j++) {
+            node_list_vec_global_ptr[i * node_vec_column_count + j] = node_list_src_ptr[j];
+        }
+    }
+
+    {
+        ONEDAL_PROFILER_TASK(allreduce_xtx, queue_);
+        comm_.allreduce(node_list_vec_global.flatten(), spmd::reduce_op::sum).wait();
+    }
+    //node_count serialize
+    auto node_count_global = pr::ndarray<Index, 1>::empty({ global_row_count });
+
+    auto node_count_global_global_ptr = node_count_global.get_mutable_data();
+    for (int i = local_offset; i < static_cast<int>(local_offset + local_row_count); i++) {
+        auto local_idx = i - local_offset;
+        node_count_global_global_ptr[i] = local_tree_level.at(local_idx).get_node_count_private();
+    }
+
+    { comm_.allreduce(node_count_global.flatten(), spmd::reduce_op::sum).wait(); }
+
+    //imp_data_serialize
+    if constexpr (std::is_same_v<task::classification, Task>) {
+        auto imp_list_global =
+            pr::ndarray<Float, 2>::empty({ global_row_count, node_vec_column_count });
+        auto imp_list_class_global =
+            pr::ndarray<Index, 2>::empty({ global_row_count, node_vec_column_count });
+
+        auto imp_list_global_ptr = imp_list_global.get_mutable_data();
+        auto imp_list_class_global_ptr = imp_list_class_global.get_mutable_data();
+        for (int i = local_offset; i < static_cast<int>(local_offset + local_row_count); i++) {
+            auto local_idx = i - local_offset;
+            auto imp_list_src = local_tree_level.at(local_idx).get_imp_data_list().get_imp_list();
+            auto imp_list_src_ptr = imp_list_src.get_mutable_data();
+            auto imp_list_class_src =
+                local_tree_level.at(local_idx).get_imp_data_list().get_imp_list();
+            auto imp_list_class_src_ptr = imp_list_class_src.get_mutable_data();
+            for (std::int64_t j = 0; j < node_vec_column_count; j++) {
+                imp_list_global_ptr[i * node_vec_column_count + j] = imp_list_src_ptr[j];
+                imp_list_class_global_ptr[i * node_vec_column_count + j] =
+                    imp_list_class_src_ptr[j];
+            }
+        }
+        {
+            ONEDAL_PROFILER_TASK(allreduce_xtx, queue_);
+            comm_.allreduce(imp_list_class_global.flatten(), spmd::reduce_op::sum).wait();
+        }
+        {
+            ONEDAL_PROFILER_TASK(allreduce_xtx, queue_);
+            comm_.allreduce(imp_list_global.flatten(), spmd::reduce_op::sum).wait();
+        }
+
+        std::vector<tree_level_record_t> global_tree_level;
+        for (std::int64_t i = 0; i < global_row_count; i++) {
+            auto imp_arr_1 = pr::ndarray<Float, 1>::empty({ node_vec_column_count });
+            auto imp_arr_2 = pr::ndarray<Index, 1>::empty({ node_vec_column_count });
+            auto imp_arr_1_ptr = imp_arr_1.get_mutable_data();
+            auto imp_arr_2_ptr = imp_arr_2.get_mutable_data();
+            for (std::int64_t j = 0; j < node_vec_column_count; j++) {
+                imp_arr_1_ptr[j] = imp_list_global_ptr[i * node_vec_column_count + j];
+                imp_arr_2_ptr[j] = imp_list_class_global_ptr[i * node_vec_column_count + j];
+            }
+
+            auto imp_data = impurity_data<Float, Index, Task>(imp_arr_1, imp_arr_2);
+            auto imp_arr_3 = pr::ndarray<Index, 1>::empty({ node_vec_column_count });
+            auto imp_arr_3_ptr = imp_arr_3.get_mutable_data();
+            for (std::int64_t j = 0; j < node_vec_column_count; j++) {
+                imp_arr_3_ptr[j] = node_list_vec_global_ptr[i * node_vec_column_count + j];
+            }
+            auto node_count = node_count_global_global_ptr[i];
+            tree_level_record_t level_record(queue_, imp_arr_3, imp_data, node_count, ctx);
+            global_tree_level.push_back(level_record);
+        }
+
+        return global_tree_level;
+    }
+    else { //regression
+        auto imp_list_global =
+            pr::ndarray<Float, 2>::empty({ global_row_count, node_vec_column_count });
+
+        auto imp_list_global_ptr = imp_list_global.get_mutable_data();
+        for (std::int64_t i = local_offset; i < static_cast<int>(local_offset + local_row_count);
+             i++) {
+            auto local_idx = i - local_offset;
+            auto imp_list_src = local_tree_level.at(local_idx).get_imp_data_list().get_imp_list();
+            auto imp_list_src_ptr = imp_list_src.get_data();
+            for (std::int64_t j = 0; j < node_vec_column_count; j++) {
+                imp_list_global_ptr[i * node_vec_column_count + j] = imp_list_src_ptr[j];
+            }
+        }
+
+        {
+            ONEDAL_PROFILER_TASK(allreduce_xtx, queue_);
+            comm_.allreduce(imp_list_global.flatten(), spmd::reduce_op::sum).wait();
+        }
+
+        std::vector<tree_level_record_t> global_tree_level;
+        for (std::int64_t i = 0; i < global_row_count; i++) {
+            auto imp_arr_1 = pr::ndarray<Float, 1>::empty({ node_vec_column_count });
+            auto imp_arr_1_ptr = imp_arr_1.get_mutable_data();
+            for (std::int64_t j = 0; j < node_vec_column_count; j++) {
+                imp_arr_1_ptr[j] = imp_list_global_ptr[i * node_vec_column_count + j];
+            }
+
+            auto imp_data = impurity_data<Float, Index, Task>(imp_arr_1);
+            auto imp_arr_3 = pr::ndarray<Index, 1>::empty({ node_vec_column_count });
+            auto imp_arr_3_ptr = imp_arr_3.get_mutable_data();
+            for (std::int64_t j = 0; j < node_vec_column_count; j++) {
+                imp_arr_3_ptr[j] = node_list_vec_global_ptr[i * node_vec_column_count + j];
+            }
+            auto node_count = node_count_global_global_ptr[i];
+            tree_level_record_t level_record(queue_, imp_arr_3, imp_data, node_count, ctx);
+            global_tree_level.push_back(level_record);
+        }
+
+        return global_tree_level;
+    }
+}
+
+template <typename Float, typename Bin, typename Index, typename Task>
+std::vector<pr::ndarray<Float, 1>>
+train_kernel_hist_impl<Float, Bin, Index, Task>::merge_bin_borders(
+    const train_context_t& ctx,
+    std::vector<pr::ndarray<Float, 1>> bin_borders_host_local,
+    std::int64_t node_count,
+    std::int64_t max_bins_) {
+    // auto local_row_count = local_tree_level.size();
+    // std::int64_t global_row_count = local_row_count;
+
+    auto& comm = comm_;
+    Index max_bins = max_bins_;
+    if (max_bins < ctx.row_count_) {
+        max_bins = ctx.row_count_;
+    }
+
+    std::int64_t rank_count = comm.get_rank_count();
+
+    auto current_rank = comm.get_rank();
+
+    // auto global_rank_offsets = array<std::int64_t>::zeros(rank_count);
+    // global_rank_offsets.get_mutable_data()[current_rank] = local_row_count;
+    // {
+    //     comm.allreduce(global_rank_offsets, spmd::reduce_op::sum).wait();
+    // }
+    // {
+    //     comm.allreduce(global_row_count, spmd::reduce_op::sum).wait();
+    // }
+    // std::int64_t local_offset = 0;
+
+    // for (std::int64_t i = 0; i < current_rank; i++) {
+    //     ONEDAL_ASSERT(global_rank_offsets.get_data()[i] >= 0);
+    //     local_offset += global_rank_offsets.get_data()[i];
+    // }
+
+    auto node_list_vec_global =
+        pr::ndarray<Float, 2>::empty({ ctx.column_count_ * rank_count, max_bins });
+
+    auto node_list_vec_global_ptr = node_list_vec_global.get_mutable_data();
+    for (int i = current_rank * ctx.column_count_;
+         i < static_cast<int>(current_rank * ctx.column_count_ + ctx.column_count_);
+         i++) {
+        auto local_idx = i - current_rank * ctx.column_count_;
+        auto node_list_src = bin_borders_host_local.at(local_idx);
+        auto node_list_src_ptr = node_list_src.get_data();
+        for (std::int64_t j = 0; j < max_bins; j++) {
+            node_list_vec_global_ptr[i * max_bins + j] = node_list_src_ptr[j];
+        }
+    }
+
+    {
+        ONEDAL_PROFILER_TASK(allreduce_xtx, queue_);
+        comm_.allreduce(node_list_vec_global.flatten(), spmd::reduce_op::sum).wait();
+    }
+
+    std::vector<pr::ndarray<Float, 1>> bin_borders_host_global;
+    for (std::int64_t i = 0; i < ctx.column_count_ * rank_count; i++) {
+        auto imp_arr_1 = pr::ndarray<Float, 1>::empty({ max_bins });
+        auto imp_arr_1_ptr = imp_arr_1.get_mutable_data();
+        for (std::int64_t j = 0; j < max_bins; j++) {
+            imp_arr_1_ptr[j] = node_list_vec_global_ptr[i * max_bins + j];
+        }
+
+        bin_borders_host_global.push_back(imp_arr_1);
+    }
+    return bin_borders_host_global;
+}
+
+template <typename Float, typename Bin, typename Index, typename Task>
 sycl::event train_kernel_hist_impl<Float, Bin, Index, Task>::finalize_oob_error(
     const train_context_t& ctx,
     const pr::ndarray<Float, 1>& response_host,
@@ -1829,7 +2063,9 @@ train_result<Task> train_kernel_hist_impl<Float, Bin, Index, Task>::operator()(
 
     result_t res;
 
-    model_manager_t model_manager(ctx, ctx.tree_count_, ctx.column_count_);
+    model_manager_t model_manager(ctx,
+                                  desc.get_tree_count() * comm_.get_rank_count(),
+                                  ctx.column_count_);
 
     auto engine_method = convert_engine_method(desc.get_engine_method());
     rng_engine_t engine_gpu =
@@ -2032,6 +2268,7 @@ train_result<Task> train_kernel_hist_impl<Float, Bin, Index, Task>::operator()(
                                                                             tree_order_lev_buf_,
                                                                             node_count,
                                                                             { last_event });
+                    last_event.wait_and_throw();
                 }
             }
             last_event.wait_and_throw();
@@ -2039,9 +2276,35 @@ train_result<Task> train_kernel_hist_impl<Float, Bin, Index, Task>::operator()(
         }
 
         last_event.wait_and_throw();
+        auto global_iter_tree_count = iter_tree_count;
+        comm_.allreduce(global_iter_tree_count);
+        if (comm_.get_rank_count() > 1) {
+            //std::cout<<"node_count * impl_const_t::node_prop_count_"<<node_count * impl_const_t::node_prop_count_<<std::endl;
+            auto level_records_total = merge_level_records(ctx, level_records, node_count);
+            auto bin_borders_host_total =
+                merge_bin_borders(ctx, bin_borders_host_, node_count, desc.get_max_bins());
 
-        model_manager.add_tree_block(level_records, bin_borders_host_, iter_tree_count);
+            //std::cout << "level_records_total.size" << level_records_total.size() << std::endl;
+            //std::cout << "level_records_total.size" << bin_borders_host_total.size() << std::endl;
+            //std::cout << global_iter_tree_count << std::endl;
+            model_manager.add_tree_block(level_records_total,
+                                         bin_borders_host_total,
+                                         iter_tree_count);
+        }
+        else {
+            model_manager.add_tree_block(level_records, bin_borders_host_, iter_tree_count);
+        }
+        //         auto global_rank_offsets = array<std::int64_t>::zeros(comm_.get_rank_count());
+        // global_rank_offsets.get_mutable_data()[comm_.get_rank()] = iter_tree_count;
+        // {
+        //     comm_.allreduce(global_rank_offsets, spmd::reduce_op::sum).wait();
+        // }
+        // std::int64_t local_offset = 0;
 
+        // for (std::int64_t i = 0; i < comm_.get_rank(); i++) {
+        //     ONEDAL_ASSERT(global_rank_offsets.get_data()[i] >= 0);
+        //     local_offset += global_rank_offsets.get_data()[i];
+        // }
         for (Index tree_idx = 0; tree_idx < iter_tree_count; ++tree_idx) {
             compute_results(ctx,
                             model_manager,
@@ -2059,6 +2322,7 @@ train_result<Task> train_kernel_hist_impl<Float, Bin, Index, Task>::operator()(
                             { last_event })
                 .wait_and_throw();
         }
+        std::cout << "here2" << std::endl;
     }
 
     // Finalize results
