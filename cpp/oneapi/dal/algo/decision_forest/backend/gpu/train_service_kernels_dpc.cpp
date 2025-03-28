@@ -20,6 +20,8 @@
 #include "oneapi/dal/detail/profiler.hpp"
 #include "oneapi/dal/algo/decision_forest/backend/gpu/train_helpers.hpp"
 
+#include <oneapi/dpl/utility>
+
 #ifdef ONEDAL_DATA_PARALLEL
 
 namespace oneapi::dal::decision_forest::backend {
@@ -382,7 +384,7 @@ sycl::event train_service_kernels<Float, Bin, Index, Task>::do_level_partition_b
 
     event.wait_and_throw();
 
-    std::swap(tree_order, tree_order_buf);
+    oneapi::dpl::swap(tree_order, tree_order_buf);
     return event;
 }
 

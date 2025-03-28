@@ -32,6 +32,8 @@
 
 #include "oneapi/dal/algo/kmeans_init/backend/gpu/compute_kernel_distr.hpp"
 
+#include <oneapi/dpl/utility>
+
 namespace oneapi::dal::kmeans_init::backend {
 
 namespace bk = dal::backend;
@@ -1007,8 +1009,8 @@ compute_result<Task> implementation(const bk::context_gpu& ctx,
                                                          { copy_event });
         auto min_event = min_number(queue, dist_sq, closest, { chosen_event });
 
-        last_event = std::move(min_event);
-        curr_potential = std::move(valmin);
+        last_event = oneapi::dpl::move(min_event);
+        curr_potential = oneapi::dpl::move(valmin);
     }
 
     sycl::event::wait_and_throw({ last_event });

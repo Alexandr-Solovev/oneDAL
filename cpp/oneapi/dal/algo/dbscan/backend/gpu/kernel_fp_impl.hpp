@@ -705,7 +705,7 @@ sycl::event set_init_index(sycl::queue& queue,
 
     return queue.submit([&](sycl::handler& cgh) {
         cgh.depends_on(deps);
-        cgh.parallel_for(sycl::range<1>{ std::size_t(1) }, [=](sycl::id<1> idx) {
+        cgh.single_task([=] {
             observation_indices_ptr[index] = value;
         });
     });
@@ -733,7 +733,7 @@ sycl::event set_arr_value(sycl::queue& queue,
 
     return queue.submit([&](sycl::handler& cgh) {
         cgh.depends_on(deps);
-        cgh.parallel_for(sycl::range<1>{ std::size_t(1) }, [=](sycl::id<1> idx) {
+        cgh.single_task([=] {
             points_queue_size_ptr[index] = value;
         });
     });
@@ -844,7 +844,7 @@ sycl::event kernels_fp<Float>::update_points_queue(sycl::queue& queue,
 
     auto fill_event = queue.submit([&](sycl::handler& cgh) {
         cgh.depends_on(deps);
-        cgh.parallel_for(sycl::range<1>{ std::size_t(1) }, [=](sycl::id<1> idx) {
+        cgh.single_task([=] {
             queue_size_arr_ptr[0] = 0;
         });
     });

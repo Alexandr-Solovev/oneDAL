@@ -17,6 +17,7 @@
 #include "oneapi/dal/backend/primitives/sort/sort.hpp"
 #include "oneapi/dal/table/row_accessor.hpp"
 #include "oneapi/dal/detail/profiler.hpp"
+#include <oneapi/dpl/utility>
 
 #include <sycl/ext/oneapi/experimental/builtins.hpp>
 
@@ -522,7 +523,7 @@ sycl::event radix_sort<Integer>::operator()(ndview<Integer, 2>& val_in,
                     if (exists)
                         output[local_offset] = input[j];
                 }
-                std::swap(input, output);
+                oneapi::dpl::swap(input, output);
             }
             for (std::uint32_t i = local_id; i < _sorted_elem_count; i += local_size)
                 output[i] = input[i];
