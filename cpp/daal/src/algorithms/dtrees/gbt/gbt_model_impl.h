@@ -60,7 +60,7 @@ void swap(T & t1, T & t2)
 class GbtDecisionTree : public SerializationIface
 {
 public:
-    DECLARE_SERIALIZABLE();
+    DECLARE_SERIALIZABLE()
     using SplitPointType             = HomogenNumericTable<ModelFPType>;
     using NodeCoverType              = HomogenNumericTable<ModelFPType>;
     using FeatureIndexesForSplitType = HomogenNumericTable<FeatureIndexType>;

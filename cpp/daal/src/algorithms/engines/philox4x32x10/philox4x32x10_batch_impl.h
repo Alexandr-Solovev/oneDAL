@@ -43,7 +43,7 @@ class BatchImpl : public algorithms::engines::philox4x32x10::interface1::Batch<a
 public:
     typedef algorithms::engines::philox4x32x10::interface1::Batch<algorithmFPType, method> super1;
     typedef algorithms::engines::internal::BatchBaseImpl super2;
-    BatchImpl(size_t seed = 777) : baseRng(seed, __DAAL_BRNG_PHILOX4X32X10), super2(seed) {}
+    BatchImpl(size_t seed = 777) : super2(seed), baseRng(seed, __DAAL_BRNG_PHILOX4X32X10) {}
 
     void * getState() DAAL_C11_OVERRIDE { return baseRng.getState(); }
 

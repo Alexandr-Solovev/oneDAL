@@ -52,8 +52,8 @@ Parameter::Parameter()
       minObservationsInLeafNode(5),
       memorySavingMode(false),
       engine(engines::mt19937::Batch<>::create()),
-      minBinSize(5),
       maxBins(256),
+      minBinSize(5),
       internalOptions(gbt::internal::parallelAll)
 {}
 

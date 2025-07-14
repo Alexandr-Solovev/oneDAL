@@ -30,7 +30,8 @@
 
 // Initialize for DAAL INFO output in KERNEL_PROFILER
 static bool print_profiler_header = (daal::internal::print_header(), false);
-
+static const char* long_cpu_name =
+    "Intel(R) Xeon Phi(TM) processors based on Intel(R) Advanced Vector Extensions 512 with support of AVX512_4FMAPS and AVX512_4VNNIW instruction groups";
 #ifndef DAAL_REF // temporary!!! should depend both on BACKEND and TARGETARCH
     #include <mkl.h>
 static const char * cpu_long_names[] = { "Generic",
@@ -40,8 +41,7 @@ static const char * cpu_long_names[] = { "Generic",
                                          "Intel(R) Advanced Vector Extensions 2",
                                          "Intel(R) Xeon Phi(TM) processors/coprocessors based on Intel(R) Advanced Vector Extensions 512",
                                          "Intel(R) Xeon(R) processors based on Intel(R) Advanced Vector Extensions 512",
-                                         "Intel(R) Xeon Phi(TM) processors based on Intel(R) Advanced Vector Extensions 512 with support of "
-                                         "AVX512_4FMAPS and AVX512_4VNNIW instruction groups" };
+                                         long_cpu_name };
 #else
 static const char * cpu_long_names[] = { "Generic" };
 #endif

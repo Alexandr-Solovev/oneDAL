@@ -109,7 +109,7 @@ inline void treeShap(const gbt::internal::GbtDecisionTree * tree, const algorith
 
     PathElement * uniquePath = parentUniquePath + uniqueDepth + 1;
     const size_t nBytes      = (uniqueDepth + 1) * sizeof(PathElement);
-    const int copyStatus     = daal::services::internal::daal_memcpy_s(uniquePath, nBytes, parentUniquePath, nBytes);
+    [[maybe_unused]] const int copyStatus     = daal::services::internal::daal_memcpy_s(uniquePath, nBytes, parentUniquePath, nBytes);
     DAAL_ASSERT(copyStatus == 0);
 
     if (condition == 0 || conditionFeature != static_cast<FeatureIndexType>(parentFeatureIndex))
@@ -253,7 +253,7 @@ inline void treeShap(const gbt::internal::GbtDecisionTree * tree, const algorith
     // extend the unique path
     PathElement * uniquePath = parentUniquePath + uniqueDepth + 1;
     size_t nBytes            = (uniqueDepth + 1) * sizeof(PathElement);
-    int copyStatus           = daal::services::internal::daal_memcpy_s(uniquePath, nBytes, parentUniquePath, nBytes);
+    [[maybe_unused]] int copyStatus           = daal::services::internal::daal_memcpy_s(uniquePath, nBytes, parentUniquePath, nBytes);
     DAAL_ASSERT(copyStatus == 0);
     // extend pWeights
     float * pWeights = parentPWeights + uniqueDepthPWeights + 1;
@@ -339,7 +339,7 @@ inline void treeShap(const gbt::internal::GbtDecisionTree * tree, const algorith
     uint32_t pathIndex = 0;
     for (; pathIndex <= uniqueDepth; ++pathIndex)
     {
-        if (uniquePath[pathIndex].featureIndex == splitIndex) break;
+        if (uniquePath[pathIndex].featureIndex == (int)splitIndex) break;
     }
     if (pathIndex != uniqueDepth + 1)
     {

@@ -63,7 +63,7 @@ services::Status BatchContainer<algorithmFPType, method, cpu>::compute()
     r[0] = static_cast<NumericTable *>(result->get(values).get());
 
     const ParameterBase * par        = static_cast<const ParameterBase *>(_par);
-    services::Environment::env & env = *_env;
+    [[maybe_unused]] services::Environment::env & env = *_env;
 
     KernelParameter kernelPar;
     kernelPar.rowIndexX       = par->rowIndexX;

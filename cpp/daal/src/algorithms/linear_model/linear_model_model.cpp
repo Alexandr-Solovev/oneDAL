@@ -46,7 +46,7 @@ namespace internal
 {
 ModelInternal::ModelInternal() : _interceptFlag(true), _beta() {}
 
-ModelInternal::ModelInternal(const NumericTablePtr & beta, const linear_model::Parameter & par) : _beta(beta), _interceptFlag(par.interceptFlag) {}
+ModelInternal::ModelInternal(const NumericTablePtr & beta, const linear_model::Parameter & par) : _interceptFlag(par.interceptFlag), _beta(beta) {}
 
 Status ModelInternal::initialize()
 {

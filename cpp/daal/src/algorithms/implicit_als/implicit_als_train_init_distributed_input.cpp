@@ -71,7 +71,9 @@ services::Status DistributedParameter::check() const
         {
             DAAL_CHECK_EX(p[i - 1] < p[i], ErrorIncorrectParameter, ParameterName, partitionStr());
         }
-        DAAL_CHECK_EX(p[nRows - 1] == fullNUsers, ErrorIncorrectParameter, ParameterName, partitionStr());
+        DAAL_CHECK_EX(p[nRows - 1] >= 0 && static_cast<size_t>(p[nRows - 1]) == fullNUsers,
+    ErrorIncorrectParameter, ParameterName, partitionStr());
+
     }
 
     return s;

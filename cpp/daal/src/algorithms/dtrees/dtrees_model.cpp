@@ -162,7 +162,7 @@ void * MemoryManager::alloc(size_t nBytes)
     }
     else
     {
-        if (!_aChunk.size() || _iCurChunk + 1 >= _aChunk.size())
+        if (!_aChunk.size() || (_iCurChunk >= 0 && static_cast<size_t>(_iCurChunk + 1) >= _aChunk.size()))
         {
             //allocate a new chunk
             DAAL_ASSERT(_aChunk.size() ? _iCurChunk >= 0 : _iCurChunk < 0);

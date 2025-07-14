@@ -63,7 +63,7 @@ services::Status BatchContainer<algorithmFPType, method, cpu>::compute()
                              result->get(tSS).get(),           result->get(determinationCoeff).get(),
                              result->get(fStatistics).get() };
 
-    daal::services::Environment::env & env = *_env;
+    [[maybe_unused]] daal::services::Environment::env & env = *_env;
     __DAAL_CALL_KERNEL(env, internal::GroupOfBetasKernel, __DAAL_KERNEL_ARGUMENTS(method, algorithmFPType), compute,
                        input->get(expectedResponses).get(), input->get(predictedResponses).get(), input->get(predictedReducedModelResponses).get(),
                        par->numBeta, par->numBetaReducedModel, par->accuracyThreshold, out);

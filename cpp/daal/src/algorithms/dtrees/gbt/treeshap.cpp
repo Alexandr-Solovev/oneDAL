@@ -65,7 +65,7 @@ void unwindPath(PathElement * uniquePath, size_t uniqueDepth, size_t pathIndex)
     }
     else
     {
-        for (int i = 0; i < uniqueDepth; ++i)
+        for (size_t i = 0; i < uniqueDepth; ++i)
         {
             uniquePath[i].partialWeight = (uniquePath[i].partialWeight * (uniqueDepth + 1)) / static_cast<float>(zeroFraction * (uniqueDepth - i));
         }
@@ -101,7 +101,7 @@ float unwoundPathSum(const PathElement * uniquePath, size_t uniqueDepth, size_t 
     }
     else if (zeroFraction != 0)
     {
-        for (int i = 0; i < uniqueDepth; ++i)
+        for (size_t i = 0; i < uniqueDepth; ++i)
         {
             total += uniquePath[i].partialWeight / (uniqueDepth - i);
         }
@@ -109,7 +109,7 @@ float unwoundPathSum(const PathElement * uniquePath, size_t uniqueDepth, size_t 
     }
     else
     {
-        for (int i = 0; i < uniqueDepth; ++i)
+        for (size_t i = 0; i < uniqueDepth; ++i)
         {
             DAAL_ASSERT(uniquePath[i].partialWeight == 0);
         }

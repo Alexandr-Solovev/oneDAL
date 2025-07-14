@@ -58,7 +58,7 @@ bool FeatureTypes::init(const NumericTable & data)
     if (!count) return true;
     allocBuf(_lastUnordered - _firstUnordered + 1);
     if (!_aFeat) return false;
-    for (size_t i = _firstUnordered; i < _lastUnordered + 1; ++i)
+    for (int i = _firstUnordered; i < _lastUnordered + 1; ++i)
     {
         _aFeat[i - _firstUnordered] = (data.getFeatureType(i) == data_management::features::DAAL_CATEGORICAL);
     }
@@ -88,7 +88,8 @@ void FeatureTypes::destroyBuf()
 
 bool FeatureTypes::findInBuf(size_t iFeature) const
 {
-    if (iFeature < _firstUnordered) return false;
+    if (_firstUnordered >= 0 && iFeature < static_cast<size_t>(_firstUnordered))
+    return false;
     const size_t i = iFeature - _firstUnordered;
     if (i < _nNoOrderedFeat) return _aFeat[i];
     DAAL_ASSERT(iFeature > _lastUnordered);

@@ -49,10 +49,10 @@ public:
 };
 #endif
 
-algorithms::Argument::Argument(const size_t n) : _storage(new internal::ArgumentStorage(n)), idx(0) {}
+algorithms::Argument::Argument(const size_t n) : idx(0), _storage(new internal::ArgumentStorage(n)) {}
 
 algorithms::Argument::Argument(const algorithms::Argument & other)
-    : _storage(new internal::ArgumentStorage(*(internal::ArgumentStorage *)other._storage.get())), idx(0)
+    : idx(0), _storage(new internal::ArgumentStorage(*(internal::ArgumentStorage *)other._storage.get()))
 {}
 
 algorithms::Argument & algorithms::Argument::operator=(const algorithms::Argument & other)
@@ -91,13 +91,13 @@ const data_management::DataCollectionPtr & algorithms::Argument::getStorage(cons
 services::SharedPtr<Base> internal::ArgumentStorage::getExtension(Extension type)
 {
     services::SharedPtr<Base> ptr;
-    if (int(type) < _extensions.size()) ptr = _extensions[type];
+    if (static_cast<size_t>(type) < _extensions.size()) ptr = _extensions[type];
     return ptr;
 }
 
 void internal::ArgumentStorage::setExtension(Extension type, const services::SharedPtr<Base> & ptr)
 {
-    if (int(type) >= _extensions.size())
+    if (static_cast<size_t>(type) >= _extensions.size())
     {
         for (auto i = _extensions.size(); i < type; ++i) _extensions.push_back(services::SharedPtr<Base>());
         _extensions.push_back(ptr);

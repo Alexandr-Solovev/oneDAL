@@ -41,7 +41,7 @@ class BaseRNGs : public BaseRNGIface<cpu>
 {
 public:
     BaseRNGs(const unsigned int _seed = 777, const int _brngId = __DAAL_BRNG_MT19937) : _baseRNG(_seed, _brngId) {}
-    ~BaseRNGs() {}
+    virtual ~BaseRNGs() = default;
 
     int getStateSize() const { return _baseRNG.getStateSize(); }
 

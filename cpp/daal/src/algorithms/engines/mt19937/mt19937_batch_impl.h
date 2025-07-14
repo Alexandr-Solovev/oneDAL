@@ -42,7 +42,7 @@ class BatchImpl : public algorithms::engines::mt19937::interface1::Batch<algorit
 public:
     typedef algorithms::engines::mt19937::interface1::Batch<algorithmFPType, method> super1;
     typedef algorithms::engines::internal::BatchBaseImpl super2;
-    BatchImpl(size_t seed = 777) : baseRng(seed, __DAAL_BRNG_MT19937), super2(seed) {}
+    BatchImpl(size_t seed = 777) : super2(seed), baseRng(seed, __DAAL_BRNG_MT19937) {}
 
     void * getState() DAAL_C11_OVERRIDE { return baseRng.getState(); }
 

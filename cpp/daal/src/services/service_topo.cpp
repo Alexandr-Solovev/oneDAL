@@ -56,7 +56,7 @@ namespace internal
 {
 static glktsn glbl_obj;
 
-static char scratch[BLOCKSIZE_4K]; // scratch space large enough for OS to write SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX
+[[maybe_unused]] static char scratch[BLOCKSIZE_4K]; // scratch space large enough for OS to write SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX
 
 static void * __internal_daal_memset(void * s, int c, size_t n)
 {
@@ -241,7 +241,7 @@ unsigned int _internal_daal_GetMaxCPUSupportedByOS()
  */
 static void __internal_daal_setChkProcessAffinityConsistency(unsigned int lcl_OSProcessorCount)
 {
-    unsigned int i, sum = 0;
+    unsigned int i = 0;
     #if defined(__linux__) || defined(__FreeBSD__)
     cpu_set_t allowedCPUs;
 
@@ -262,10 +262,11 @@ static void __internal_daal_setChkProcessAffinityConsistency(unsigned int lcl_OS
     #else
     DWORD_PTR processAffinity;
     DWORD_PTR systemAffinity;
-
-        #if (_WIN32_WINNT >= 0x0601)
-
+    
+    #if (_WIN32_WINNT >= 0x0601)
+    
     GROUP_AFFINITY grp_affinity, prev_grp_affinity;
+    unsigned int sum = 0;
     unsigned int cpu_cnt;
     DWORD cnt;
     SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX * pSystem_rel_info = NULL;
@@ -444,11 +445,11 @@ static unsigned long __internal_daal_getBitsFromDWORD(const unsigned int val, co
  */
 static int __internal_daal_countBits(DWORD_PTR x)
 {
-    int res = 0, i;
+    int res = 0;
     LNX_PTR2INT myll;
 
     myll = (LNX_PTR2INT)(x);
-    for (i = 0; i < (8 * sizeof(myll)); i++)
+    for (size_t i = 0; i < (8 * sizeof(myll)); i++)
     {
         if ((myll & (LNX_MY1CON << i)) != 0)
         {
@@ -573,7 +574,7 @@ static void __internal_daal_freeGenericAffinityMask(GenericAffinityMask * pAffin
  *     pAffinityMap - pointer to a generic affinity mask
  * Return: none
  */
-static void __internal_daal_clearGenericAffinityMask(GenericAffinityMask * pAffinityMap)
+[[maybe_unused]] static void __internal_daal_clearGenericAffinityMask(GenericAffinityMask * pAffinityMap)
 {
     _INTERNAL_DAAL_MEMSET(pAffinityMap->AffinityMask, 0, pAffinityMap->maxByteLength);
 }
@@ -608,7 +609,7 @@ static void __internal_daal_setGenericAffinityBit(GenericAffinityMask * pAffinit
  *     pAffinityMap2 - pointer to another generic affinity mask
  * Return: 0 if equal, 1 otherwise
  */
-static int __internal_daal_compareEqualGenericAffinity(GenericAffinityMask * pAffinityMap1, GenericAffinityMask * pAffinityMap2)
+[[maybe_unused]] static int __internal_daal_compareEqualGenericAffinity(GenericAffinityMask * pAffinityMap1, GenericAffinityMask * pAffinityMap2)
 {
     int rc;
     unsigned i, smaller;
@@ -657,7 +658,7 @@ static int __internal_daal_compareEqualGenericAffinity(GenericAffinityMask * pAf
  *     generic affinty mask ptr
  * Return: 0 if no error, -1 otherise
  */
-static int __internal_daal_clearGenericAffinityBit(GenericAffinityMask * pAffinityMap, unsigned cpu)
+[[maybe_unused]] static int __internal_daal_clearGenericAffinityBit(GenericAffinityMask * pAffinityMap, unsigned cpu)
 {
     if (cpu < (pAffinityMap->maxByteLength << 3))
     {
@@ -1244,7 +1245,7 @@ static unsigned __internal_daal_parseIDS4EachThread(unsigned i, unsigned numMapp
     glbl_obj.pApicAffOrdMapping[numMappings].Core_IDAPIC     = ((APICID & glbl_obj.CoreSelectMask) >> glbl_obj.SMTMaskWidth);
     glbl_obj.pApicAffOrdMapping[numMappings].SMT_IDAPIC      = (APICID & glbl_obj.SMTSelectMask);
 
-    if (glbl_obj.maxCacheSubleaf != -1)
+    if (glbl_obj.maxCacheSubleaf != std::numeric_limits<unsigned int>::max())
     {
         for (subleaf = 0; subleaf <= glbl_obj.maxCacheSubleaf; subleaf++)
         {
@@ -1679,7 +1680,7 @@ static void __internal_daal_buildSystemTopologyTables()
     }
 
     // an example of building cache topology info for each cache level
-    if (glbl_obj.maxCacheSubleaf != -1)
+    if (glbl_obj.maxCacheSubleaf != std::numeric_limits<unsigned int>::max())
     {
         for (subleaf = 0; subleaf <= glbl_obj.maxCacheSubleaf; subleaf++)
         {
@@ -1934,7 +1935,8 @@ static __inline void get_cache_info(int cache_num, int * type, int * level, long
     const uint32_t eax = abcd[0];
     const uint32_t ebx = abcd[1];
     const uint32_t ecx = abcd[2];
-    const uint32_t edx = abcd[3];
+    // Unused variable
+    // const uint32_t edx = abcd[3];
     *type              = _CPUID_CACHE_INFO_GET_TYPE(eax);
     *level             = _CPUID_CACHE_INFO_GET_LEVEL(eax);
     *sets              = _CPUID_CACHE_INFO_GET_SETS(ecx);
@@ -1971,8 +1973,6 @@ volatile static long long cache_sizes[MAX_CACHE_LEVELS] = { 0 };
 
 static __inline void update_cache_sizes()
 {
-    int cbwr_branch;
-
     if (cache_sizes_read) return;
 
     if (!cache_sizes_read) detect_data_caches(MAX_CACHE_LEVELS, cache_sizes);

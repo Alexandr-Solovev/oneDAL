@@ -76,7 +76,7 @@ services::Status BatchContainer<algorithmFPType, method, cpu>::compute()
     const auto pModel                      = input->get(model).get();
     bool bModelNe                          = false;
     const auto pXtx                        = internal::getXtXTable(*pModel, bModelNe);
-    daal::services::Environment::env & env = *_env;
+    [[maybe_unused]] daal::services::Environment::env & env = *_env;
     __DAAL_CALL_KERNEL(env, internal::SingleBetaKernel, __DAAL_KERNEL_ARGUMENTS(method, algorithmFPType), compute,
                        input->get(expectedResponses).get(), input->get(predictedResponses).get(), pModel->getNumberOfFeatures(),
                        pModel->getBeta().get(), pXtx, bModelNe, par->accuracyThreshold, par->alpha, out);

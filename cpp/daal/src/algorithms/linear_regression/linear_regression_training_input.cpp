@@ -84,7 +84,7 @@ services::Status Input::check(const daal::algorithms::Parameter * par, int metho
     Status s;
     DAAL_CHECK_STATUS(s, linear_model::training::Input::check(par, method));
 
-    const Parameter * parameter = static_cast<const Parameter *>(par);
+    [[maybe_unused]] const Parameter * parameter = static_cast<const Parameter *>(par);
 
     NumericTablePtr dataTable = get(data);
     size_t nRowsInData        = dataTable->getNumberOfRows();
