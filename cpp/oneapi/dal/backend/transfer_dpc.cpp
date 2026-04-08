@@ -41,6 +41,10 @@ sycl::event gather_device2host(sycl::queue& q,
     ONEDAL_ASSERT(is_known_usm(q, src_device));
     ONEDAL_ASSERT_MUL_OVERFLOW(std::int64_t, block_count, block_size_in_bytes);
 
+    if (src_stride_in_bytes == block_size_in_bytes) {
+        return memcpy_usm2host(q, dst_host, src_device, block_count * block_size_in_bytes, deps);
+    }
+
     const auto gathered_device_unique =
         make_unique_usm_device(q, block_count * block_size_in_bytes);
 
@@ -50,14 +54,13 @@ sycl::event gather_device2host(sycl::queue& q,
         const byte_t* src_byte = reinterpret_cast<const byte_t*>(src_device);
         byte_t* gathered_byte = reinterpret_cast<byte_t*>(gathered_device_unique.get());
 
-        const std::int64_t required_local_size = 256;
+        const std::int64_t required_local_size = bk::device_max_wg_size(q);
         const std::int64_t local_size = std::min(down_pow2(block_count), required_local_size);
         const auto range = make_multiple_nd_range_1d(block_count, local_size);
 
         cgh.parallel_for(range, [=](sycl::nd_item<1> id) {
             const auto i = id.get_global_id();
             if (i < block_count) {
-                // TODO: Unroll for optimization
                 for (int j = 0; j < block_size_in_bytes; j++) {
                     gathered_byte[i * block_size_in_bytes + j] =
                         src_byte[i * src_stride_in_bytes + j];
@@ -72,11 +75,10 @@ sycl::event gather_device2host(sycl::queue& q,
                                       block_count * block_size_in_bytes,
                                       { gather_event });
 
-    // We need to wait until gather kernel is completed to deallocate
-    // `gathered_device_unique`
+    // Wait for copy to complete before `gathered_device_unique` goes out of scope
     copy_event.wait_and_throw();
 
-    return sycl::event{};
+    return copy_event;
 }
 
 sycl::event scatter_host2device(sycl::queue& q,
@@ -94,6 +96,10 @@ sycl::event scatter_host2device(sycl::queue& q,
     ONEDAL_ASSERT(dst_stride_in_bytes >= block_size_in_bytes);
     ONEDAL_ASSERT(is_known_usm(q, dst_device));
     ONEDAL_ASSERT_MUL_OVERFLOW(std::int64_t, block_count, block_size_in_bytes);
+
+    if (dst_stride_in_bytes == block_size_in_bytes) {
+        return memcpy_host2usm(q, dst_device, src_host, block_count * block_size_in_bytes, deps);
+    }
 
     const auto gathered_device_unique =
         make_unique_usm_device(q, block_count * block_size_in_bytes);
@@ -118,7 +124,6 @@ sycl::event scatter_host2device(sycl::queue& q,
         cgh.parallel_for(range, [=](sycl::nd_item<1> id) {
             const auto i = id.get_global_id();
             if (i < block_count) {
-                // TODO: Unroll for optimization
                 for (std::int64_t j = 0; j < block_size_in_bytes; ++j) {
                     dst_byte[i * dst_stride_in_bytes + j] =
                         gathered_byte[i * block_size_in_bytes + j];
@@ -127,11 +132,10 @@ sycl::event scatter_host2device(sycl::queue& q,
         });
     });
 
-    // We need to wait until scatter kernel is completed to deallocate
-    // `gathered_device_unique`
+    // Wait for scatter to complete before `gathered_device_unique` goes out of scope
     scatter_event.wait_and_throw();
 
-    return sycl::event{};
+    return scatter_event;
 }
 
 sycl::event scatter_host2device_blocking(sycl::queue& q,
@@ -164,7 +168,8 @@ sycl::event scatter_host2device_blocking(sycl::queue& q,
 
     const auto block_size = propose_block_size<float>(q, block_count);
     const bk::uniform_blocking blocking(block_count, block_size);
-    std::vector<sycl::event> events(blocking.get_block_count());
+    std::vector<sycl::event> events;
+    events.reserve(blocking.get_block_count());
 
     const auto block_range = blocking.get_block_count();
 

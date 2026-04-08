@@ -58,7 +58,7 @@ inline std::tuple<array<T>, sycl::event> to_host(const array<T>& ary) {
     ONEDAL_ASSERT(ary.get_queue().has_value());
     auto q = ary.get_queue().value();
 
-    const auto ary_host = array<T>::empty(q, ary.get_count());
+    const auto ary_host = array<T>::empty(q, ary.get_count(), sycl::usm::alloc::host);
     const auto event =
         copy_usm2host<T>(q, ary_host.get_mutable_data(), ary.get_data(), ary.get_count());
     return { ary_host, event };
