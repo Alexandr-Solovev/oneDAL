@@ -243,9 +243,9 @@ private:
     }
 
     std::string get_dataset_root() const {
-        const char* dataset_root_ptr = std::getenv("DAAL_DATASETS");
+        const char* dataset_root_ptr = std::getenv("DATASETSROOT");
         if (dataset_root_ptr == nullptr) {
-            throw invalid_argument{ "DAAL_DATASETS environment variable is unset" };
+            throw invalid_argument{ "DATASETSROOT environment variable is unset" };
         }
         return trim_path_right(dataset_root_ptr);
     }

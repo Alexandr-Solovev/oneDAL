@@ -291,7 +291,7 @@ The most used Bazel commands are `build`, `test` and `run`.
 ## Advanced testing
 ### Tests that use external datasets
 Some tests may depend on quite large datasets that cannot be stored in the Git
-repository. In that case test should read dataset from `$DAAL_DATASETS`
+repository. In that case test should read dataset from `$DATASETSROOT`
 directory that could point to datasets storage on local disk. We call such
 datasets _external_.
 

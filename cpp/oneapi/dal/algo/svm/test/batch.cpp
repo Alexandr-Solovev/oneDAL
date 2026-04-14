@@ -384,14 +384,14 @@ TEMPLATE_LIST_TEST_M(svm_batch_test,
     using kernel_t = polynomial::descriptor<float_t, polynomial::method::dense>;
 
     const te::dataframe train_data =
-        GENERATE_DATAFRAME(te::dataframe_builder{ "svm/mnist_train_38_binary.csv" });
+        GENERATE_DATAFRAME(te::dataframe_builder{ "workloads/mnist/dataset/mnist_train.csv" });
     const auto x_train = train_data.get_table(this->get_homogen_table_id(), range(0, -1));
     const auto y_train = train_data.get_table(
         this->get_homogen_table_id(),
         range(train_data.get_column_count() - 1, train_data.get_column_count()));
 
     const te::dataframe test_data =
-        GENERATE_DATAFRAME(te::dataframe_builder{ "svm/mnist_test_38_binary.csv" });
+        GENERATE_DATAFRAME(te::dataframe_builder{ "workloads/mnist/dataset/mnist_test.csv" });
     const table x_test = test_data.get_table(this->get_homogen_table_id(), range(0, -1));
     const table y_test = test_data.get_table(
         this->get_homogen_table_id(),
