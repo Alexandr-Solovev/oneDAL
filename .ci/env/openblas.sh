@@ -113,8 +113,27 @@ if [[ ${compiler} =~ "clang" && "${cross_compile}" == "yes" ]] ; then
   fi
 fi
 
-sudo apt-get update
-sudo apt-get -y install build-essential gcc gfortran
+retry_apt_get() {
+    local max_retries=3
+    local retry_delay=10
+    local attempt=1
+    while [ $attempt -le $max_retries ]; do
+        if sudo apt-get -o Acquire::Retries=3 "$@"; then
+            return 0
+        fi
+        if [ $attempt -lt $max_retries ]; then
+            echo "apt-get failed (attempt ${attempt}/${max_retries}), retrying in ${retry_delay}s..."
+            sleep $retry_delay
+            retry_delay=$((retry_delay * 2))
+        fi
+        attempt=$((attempt + 1))
+    done
+    echo "ERROR: apt-get failed after ${max_retries} attempts"
+    return 1
+}
+
+retry_apt_get update
+retry_apt_get -y install build-essential gcc gfortran
 blas_src_dir=${blas_src_dir:-$OPENBLAS_DEFAULT_SOURCE_DIR}
 if [[ ! -d "${blas_src_dir}" ]] ; then
   git clone --depth=1 --branch "${BLAS_VERSION}" https://github.com/OpenMathLib/OpenBLAS "${blas_src_dir}"

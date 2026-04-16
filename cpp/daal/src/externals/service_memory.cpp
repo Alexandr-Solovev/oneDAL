@@ -27,8 +27,9 @@
 
 void * daal::services::daal_malloc(size_t size, size_t alignment)
 {
-    // DAAL_PROFILER_SERVICE_TASK(daal_malloc);
-    return daal::internal::ServiceInst::serv_malloc(size, alignment);
+    void * ptr = daal::internal::ServiceInst::serv_malloc(size, alignment);
+    DAAL_MEMTRACK_ALLOC("daal_malloc", size, ptr);
+    return ptr;
 }
 
 void * daal::services::daal_calloc(size_t size, size_t alignment)
@@ -48,6 +49,7 @@ void * daal::services::daal_calloc(size_t size, size_t alignment)
 
 void daal::services::daal_free(void * ptr)
 {
+    DAAL_MEMTRACK_FREE("daal_free", ptr, 0);
     daal::internal::ServiceInst::serv_free(ptr);
 }
 

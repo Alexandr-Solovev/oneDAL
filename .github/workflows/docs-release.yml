@@ -45,7 +45,12 @@ jobs:
         python-version: "3.13"
 
     - name: Install System Dependencies
-      run: sudo apt-get update && sudo apt-get install -y clang-format pandoc python3-setuptools doxygen
+      run: |
+        for i in 1 2 3; do
+          sudo apt-get update &&
+          sudo apt-get -o Acquire::Retries=3 -y install clang-format pandoc python3-setuptools doxygen &&
+          break || { echo "apt-get failed (attempt $i/3), retrying in $((i * 10))s..."; sleep $((i * 10)); }
+        done
 
     - name: Extract Tag Version
       run: |

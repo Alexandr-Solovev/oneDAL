@@ -24,6 +24,7 @@
 #include "src/threading/threading.h"
 #include "services/daal_memory.h"
 #include "src/algorithms/service_qsort.h"
+#include "src/services/service_profiler.h"
 
 #define TBB_PREVIEW_GLOBAL_CONTROL 1
 #define TBB_PREVIEW_TASK_ARENA     1
@@ -52,18 +53,23 @@
 
 DAAL_EXPORT void * _threaded_scalable_malloc(const size_t size, const size_t alignment)
 {
+    void * ptr;
 #ifndef USE_STD_ALLOC
-    return scalable_aligned_malloc(size, alignment);
+    ptr = scalable_aligned_malloc(size, alignment);
 #else
-    if (size < alignment) size = alignment;
-    const size_t mod = size % alignment;
-    if (mod) size += alignment - mod;
-    return std::aligned_alloc(alignment, size);
+    size_t alloc_size = size;
+    if (alloc_size < alignment) alloc_size = alignment;
+    const size_t mod = alloc_size % alignment;
+    if (mod) alloc_size += alignment - mod;
+    ptr = std::aligned_alloc(alignment, alloc_size);
 #endif
+    DAAL_MEMTRACK_ALLOC("scalable_malloc", size, ptr);
+    return ptr;
 }
 
 DAAL_EXPORT void _threaded_scalable_free(void * ptr)
 {
+    DAAL_MEMTRACK_FREE("scalable_free", ptr, 0);
 #ifndef USE_STD_ALLOC
     scalable_aligned_free(ptr);
 #else

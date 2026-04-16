@@ -18,8 +18,30 @@
 
 component=$1
 
+# Retry wrapper for apt-get commands to handle transient network failures.
+# Uses apt's built-in Acquire::Retries for download-level retries and a
+# shell-level loop for overall command retries with exponential backoff.
+function retry_apt_get {
+    local max_retries=3
+    local retry_delay=10
+    local attempt=1
+    while [ $attempt -le $max_retries ]; do
+        if sudo apt-get -o Acquire::Retries=3 "$@"; then
+            return 0
+        fi
+        if [ $attempt -lt $max_retries ]; then
+            echo "apt-get failed (attempt ${attempt}/${max_retries}), retrying in ${retry_delay}s..."
+            sleep $retry_delay
+            retry_delay=$((retry_delay * 2))
+        fi
+        attempt=$((attempt + 1))
+    done
+    echo "ERROR: apt-get failed after ${max_retries} attempts"
+    return 1
+}
+
 function update {
-    sudo apt-get update
+    retry_apt_get update
 }
 
 function add_repo {
@@ -27,36 +49,36 @@ function add_repo {
         gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
     echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" \
         | sudo tee /etc/apt/sources.list.d/oneAPI.list
-    sudo apt update
+    retry_apt_get update
 }
 
 function install_dpcpp {
     # DPC++ compiler version monitored by Renovate and sets exact value available via apt
-    sudo apt-get install -y intel-oneapi-compiler-dpcpp-cpp=2025.3.3-30 intel-oneapi-runtime-libs
+    retry_apt_get install -y intel-oneapi-compiler-dpcpp-cpp=2025.3.3-30 intel-oneapi-runtime-libs
 }
 
 function install_tbb {
     # TBB version monitored by Renovate and sets exact value available via apt
-    sudo apt-get install -y intel-oneapi-tbb-devel=2022.3.1-400
+    retry_apt_get install -y intel-oneapi-tbb-devel=2022.3.1-400
 }
 
 function install_dpl {
-    sudo apt-get install -y intel-oneapi-libdpstd-devel
+    retry_apt_get install -y intel-oneapi-libdpstd-devel
 }
 
 function install_mkl {
     # MKL version monitored by Renovate and sets exact value available via apt
-    sudo apt-get install -y intel-oneapi-mkl-devel=2025.3.1-8
+    retry_apt_get install -y intel-oneapi-mkl-devel=2025.3.1-8
     install_tbb
     install_dpl
 }
 
 function install_clang-format {
-    sudo apt-get install -y clang-format-14
+    retry_apt_get install -y clang-format-14
 }
 
 function install_dev-base {
-    sudo apt-get install -y gcc-multilib g++-multilib tree
+    retry_apt_get install -y gcc-multilib g++-multilib tree
 }
 
 function install_dev-base-conda {
@@ -65,15 +87,15 @@ function install_dev-base-conda {
 }
 
 function install_gnu-cross-compilers {
-    sudo apt-get install -y "gcc-$1-linux-gnu" "g++-$1-linux-gnu" "gfortran-$1-linux-gnu"
+    retry_apt_get install -y "gcc-$1-linux-gnu" "g++-$1-linux-gnu" "gfortran-$1-linux-gnu"
 }
 
 function install_qemu_emulation_apt {
-    sudo apt-get install -y qemu-user-static
+    retry_apt_get install -y qemu-user-static
 }
 
 function install_opencl_apt {
-    sudo apt-get install -y ocl-icd-opencl-dev
+    retry_apt_get install -y ocl-icd-opencl-dev
 }
 
 function install_qemu_emulation_deb {
@@ -85,7 +107,7 @@ function install_qemu_emulation_deb {
 }
 
 function install_llvm_version {
-    sudo apt-get install -y curl
+    retry_apt_get install -y curl
     curl -o llvm.sh https://apt.llvm.org/llvm.sh
     chmod u+x llvm.sh
     sudo ./llvm.sh "$1"
@@ -101,7 +123,7 @@ function build_sysroot {
     # the working directory
     mkdir -p "$1"
     pushd "$1" || exit
-    sudo apt-get install -y debootstrap build-essential
+    retry_apt_get install -y debootstrap build-essential
     sudo debootstrap --arch="$2" --verbose --include=fakeroot,symlinks,libatomic1 --resolve-deps --variant=minbase --components=main,universe "$3" "$4"
     sudo chroot "$4" symlinks -cr .
     sudo chown "${USER}" -R "$4"
@@ -134,7 +156,7 @@ function install_miniforge {
 }
 
 function install_abigail {
-    sudo apt-get install -y abigail-tools
+    retry_apt_get install -y abigail-tools
 }
 
 if [ "${component}" == "dpcpp" ]; then

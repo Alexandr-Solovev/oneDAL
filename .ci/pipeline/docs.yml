@@ -48,13 +48,15 @@ steps:
 - script: |
     set -euo pipefail
     cd docs
-    sudo apt-get update
-    sudo apt-get install python3-setuptools
+    for i in 1 2 3; do
+      sudo apt-get update &&
+      sudo apt-get -o Acquire::Retries=3 -y install python3-setuptools doxygen &&
+      break || { echo "apt-get failed (attempt $i/3), retrying in $((i * 10))s..."; sleep $((i * 10)); }
+    done
     python3 -m venv venv
     source venv/bin/activate
     pip install --upgrade pip
     pip install -r requirements.txt
-    sudo apt-get install doxygen
   displayName: 'Install requirements'
 
 - script: |

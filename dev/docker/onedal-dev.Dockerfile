@@ -20,8 +20,11 @@ ARG workdirectory="/sources/oneDAL"
 WORKDIR ${workdirectory}
 
 #Env setup
-RUN apt-get update && \
-      apt-get -y install sudo wget gnupg git make python3-setuptools doxygen software-properties-common unzip zstd tar
+RUN for i in 1 2 3; do \
+      apt-get update && \
+      apt-get -o Acquire::Retries=3 -y install sudo wget gnupg git make python3-setuptools doxygen software-properties-common unzip zstd tar && \
+      break || { echo "apt-get failed (attempt $i/3), retrying in $((i * 10))s..."; sleep $((i * 10)); } \
+    done
 
 # Install miniconda
 ENV CONDA_DIR=/opt/conda

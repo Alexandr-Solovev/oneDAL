@@ -33,6 +33,7 @@
 #include <algorithm>
 #include <exception>
 #include <unordered_map>
+#include <thread>
 #include "services/library_version_info.h"
 
 #ifdef _WIN32
@@ -123,7 +124,7 @@
         return daal::internal::profiler::start_task(nullptr);                                                                                 \
     }()
 
-static volatile int daal_verbose_val                = -1;
+inline volatile int daal_verbose_val                 = -1;
 inline static constexpr int PROFILER_MODE_OFF       = 0;
 inline static constexpr int PROFILER_MODE_LOGGER    = 1;
 inline static constexpr int PROFILER_MODE_TRACER    = 2;
@@ -258,6 +259,8 @@ struct task_entry
     std::int64_t level;
     std::int64_t count;
     bool threading_task;
+    /// Per-thread durations for threading tasks (populated during merge)
+    std::vector<std::uint64_t> thread_durations;
 };
 
 struct task
@@ -335,7 +338,45 @@ public:
                     prefix += "|-- ";
                     std::cerr << prefix << entry.name << " time: " << format_time_for_output(entry.duration) << " " << std::fixed
                               << std::setprecision(2) << (total_time > 0 ? (double(entry.duration) / total_time) * 100 : 0.0) << "% " << entry.count
-                              << " times in a " << (entry.threading_task ? "parallel" : "sequential") << " region" << '\n';
+                              << " times in a " << (entry.threading_task ? "parallel" : "sequential") << " region";
+
+                    // Per-thread stats for threading tasks
+                    if (entry.threading_task && !entry.thread_durations.empty())
+                    {
+                        const auto & td = entry.thread_durations;
+                        std::uint64_t tmin = *std::min_element(td.begin(), td.end());
+                        std::uint64_t tmax = *std::max_element(td.begin(), td.end());
+                        std::uint64_t tsum = 0;
+                        std::uint64_t active_count = 0;
+                        for (auto d : td)
+                        {
+                            tsum += d;
+                            // A thread is "active" if it ran for at least 1% of the max
+                            if (d > tmax / 100) active_count++;
+                        }
+                        double tavg = static_cast<double>(tsum) / td.size();
+                        // Imbalance ratio: 1.0 = perfect balance, higher = worse
+                        double imbalance = (tavg > 0) ? static_cast<double>(tmax) / tavg : 1.0;
+
+                        std::cerr << '\n' << prefix << "  threads: " << td.size()
+                                  << " | min: " << format_time_for_output(tmin)
+                                  << " | max: " << format_time_for_output(tmax)
+                                  << " | avg: " << format_time_for_output(static_cast<std::uint64_t>(tavg))
+                                  << " | imbalance: " << std::fixed << std::setprecision(2) << imbalance << "x"
+                                  << " | active: " << active_count << "/" << td.size();
+
+                        if (imbalance > 2.0)
+                        {
+                            std::cerr << " WARNING: high thread imbalance!";
+                        }
+                        // Show idle threads (those with < 1% of max)
+                        std::uint64_t idle_count = td.size() - active_count;
+                        if (idle_count > 0)
+                        {
+                            std::cerr << " (" << idle_count << " idle threads)";
+                        }
+                    }
+                    std::cerr << '\n';
                 }
                 std::cerr << "|--(end)" << '\n';
                 std::cerr << "DAAL KERNEL_PROFILER: kernels total time " << format_time_for_output(total_time) << '\n';
@@ -385,7 +426,8 @@ public:
     ///
     /// @note Uses a mutex for thread safety, logs unique task names if logging is enabled, captures the start time,
     /// updates task info, and increments the kernel count. Stores task details in tasks_info.kernels, marking it
-    /// as a threading task. Invoked by the DAAL_PROFILER_THREADING_TASK macro.
+    /// as a threading task. Increments the nesting level so that inner threading tasks appear nested correctly
+    /// in the analyzer tree. Invoked by the DAAL_PROFILER_THREADING_TASK macro.
     inline static profiler_task start_threading_task(const char * task_name)
     {
         if (!task_name) return profiler_task(nullptr, -1);
@@ -393,6 +435,7 @@ public:
         std::lock_guard<std::mutex> lock(global_mutex());
         if (is_logger_enabled())
         {
+            auto tid = std::this_thread::get_id();
             if (!is_service_debug_enabled())
             {
                 static std::vector<std::string> unique_task_names;
@@ -407,7 +450,7 @@ public:
             else
             {
                 std::cerr << "-----------------------------------------------------------------------------" << '\n';
-                std::cerr << "THREADING Profiler task started " << task_name << '\n';
+                std::cerr << "THREADING Profiler task started " << task_name << " [thread " << tid << "]" << '\n';
             }
         }
         auto ns_start                = get_time();
@@ -415,7 +458,10 @@ public:
         auto & current_level_        = get_instance()->get_current_level();
         auto & current_kernel_count_ = get_instance()->get_kernel_count();
         std::int64_t tmp             = current_kernel_count_;
-        tasks_info.kernels.push_back({ tmp, task_name, ns_start, current_level_, 1, true });
+        // Threading tasks all appear at the same level (they're siblings inside the parallel region).
+        // Do NOT increment current_level_ here — that's what caused nesting corruption when
+        // multiple threads pushed entries concurrently.
+        tasks_info.kernels.push_back({ tmp, task_name, ns_start, current_level_, 1, true, {} });
         current_kernel_count_++;
         return profiler_task(task_name, tmp, true);
     }
@@ -450,8 +496,8 @@ public:
     /// @param[in] idx_ The index of the task in the tasks_info.kernels vector
     ///
     /// @note If task_name is nullptr or idx_ is invalid, the function returns immediately.
-    /// Captures the end time, calculates the task duration, and updates the task entry.
-    /// Logs unique task names and duration if tracing is enabled, indicating completion on the main rank.
+    /// Captures the end time, calculates the task duration, updates the task entry, and decrements
+    /// the nesting level. Logs the task name and duration if tracing is enabled.
     /// Uses a mutex for thread safety. Invoked by the DAAL_PROFILER_THREADING_TASK macro.
     inline static void end_threading_task(const char * task_name, int idx_)
     {
@@ -466,17 +512,13 @@ public:
         auto & entry   = tasks_info.kernels[idx_];
         auto duration  = ns_end - entry.duration;
         entry.duration = duration;
+        // Do NOT decrement current_level_ — threading tasks don't own a level slot.
+        // They all sit at the same level as siblings under the parent sequential task.
 
         if (is_tracer_enabled())
         {
-            static std::vector<std::string> unique_task_names;
-            bool is_new_task = std::find(unique_task_names.begin(), unique_task_names.end(), task_name) == unique_task_names.end();
-            if (is_new_task)
-            {
-                unique_task_names.push_back(task_name);
-                std::cerr << "THREADING " << task_name
-                          << " finished on the main rank(time could be different for other ranks): " << format_time_for_output(duration) << '\n';
-            }
+            std::cerr << "THREADING " << task_name << " [thread " << std::this_thread::get_id() << "] finished: "
+                      << format_time_for_output(duration) << '\n';
         }
     }
 
@@ -521,9 +563,21 @@ public:
                     if (kernels[j].name == kernels[k].name)
                     {
                         if (kernels[j].threading_task)
+                        {
+                            // First merge: populate thread_durations from the first entry
+                            if (kernels[j].thread_durations.empty())
+                            {
+                                kernels[j].thread_durations.push_back(kernels[j].duration);
+                            }
+                            // Collect this thread's duration
+                            kernels[j].thread_durations.push_back(kernels[k].duration);
+                            // Wallclock = max across threads (parallel region ends when slowest finishes)
                             kernels[j].duration = std::max(kernels[j].duration, kernels[k].duration);
+                        }
                         else
+                        {
                             kernels[j].duration += kernels[k].duration;
+                        }
                         kernels.erase(kernels.begin() + k);
                         --k;
                         --end;
@@ -580,6 +634,132 @@ inline profiler_task::~profiler_task()
 #endif
     }
 }
+
+/// Memory tracker for profiling allocation/deallocation patterns.
+/// Controlled by ONEDAL_MEMTRACK environment variable:
+///   0 (default): disabled
+///   1: log allocations/deallocations to stderr
+///   2: log + summary on exit (peak, current, count)
+class memory_tracker
+{
+public:
+    inline static memory_tracker * get_instance()
+    {
+        static memory_tracker instance;
+        return &instance;
+    }
+
+    inline static bool is_enabled()
+    {
+        static const int level = [] {
+            const char * val = std::getenv("ONEDAL_MEMTRACK");
+            if (!val) return 0;
+            char * endptr = nullptr;
+            long v        = std::strtol(val, &endptr, 10);
+            if (endptr == val || *endptr != '\0' || v < 0 || v > 2) return 0;
+            return static_cast<int>(v);
+        }();
+        return level > 0;
+    }
+
+    inline static int tracking_level()
+    {
+        static const int level = [] {
+            const char * val = std::getenv("ONEDAL_MEMTRACK");
+            if (!val) return 0;
+            char * endptr = nullptr;
+            long v        = std::strtol(val, &endptr, 10);
+            if (endptr == val || *endptr != '\0' || v < 0 || v > 2) return 0;
+            return static_cast<int>(v);
+        }();
+        return level;
+    }
+
+    inline void on_alloc(const char * source, std::size_t bytes, const void * ptr)
+    {
+        std::lock_guard<std::mutex> lock(mtx_);
+        alloc_count_++;
+        current_bytes_ += bytes;
+        if (current_bytes_ > peak_bytes_) peak_bytes_ = current_bytes_;
+        total_allocated_ += bytes;
+        if (tracking_level() >= 1)
+        {
+            std::cerr << "[MEMTRACK] alloc " << format_bytes(bytes) << " via " << source << " -> " << ptr
+                      << " (current: " << format_bytes(current_bytes_) << ", peak: " << format_bytes(peak_bytes_) << ")" << '\n';
+        }
+    }
+
+    inline void on_free(const char * source, const void * ptr, std::size_t bytes)
+    {
+        std::lock_guard<std::mutex> lock(mtx_);
+        free_count_++;
+        if (bytes <= current_bytes_)
+            current_bytes_ -= bytes;
+        else
+            current_bytes_ = 0;
+        if (tracking_level() >= 1)
+        {
+            std::cerr << "[MEMTRACK] free " << format_bytes(bytes) << " via " << source << " ptr=" << ptr
+                      << " (current: " << format_bytes(current_bytes_) << ")" << '\n';
+        }
+    }
+
+    inline ~memory_tracker()
+    {
+        if (tracking_level() >= 2 && (alloc_count_ > 0 || free_count_ > 0))
+        {
+            std::cerr << "\n[MEMTRACK] === Memory tracking summary ===" << '\n';
+            std::cerr << "[MEMTRACK] Total allocations:   " << alloc_count_ << '\n';
+            std::cerr << "[MEMTRACK] Total deallocations: " << free_count_ << '\n';
+            std::cerr << "[MEMTRACK] Total allocated:     " << format_bytes(total_allocated_) << '\n';
+            std::cerr << "[MEMTRACK] Peak usage:          " << format_bytes(peak_bytes_) << '\n';
+            std::cerr << "[MEMTRACK] Current (at exit):   " << format_bytes(current_bytes_) << '\n';
+            if (current_bytes_ > 0)
+            {
+                std::cerr << "[MEMTRACK] WARNING: " << format_bytes(current_bytes_) << " not freed at exit" << '\n';
+            }
+        }
+    }
+
+private:
+    inline memory_tracker() = default;
+
+    inline static std::string format_bytes(std::size_t bytes)
+    {
+        std::ostringstream out;
+        double b = static_cast<double>(bytes);
+        if (b >= 1073741824.0)
+            out << std::fixed << std::setprecision(2) << b / 1073741824.0 << " GB";
+        else if (b >= 1048576.0)
+            out << std::fixed << std::setprecision(2) << b / 1048576.0 << " MB";
+        else if (b >= 1024.0)
+            out << std::fixed << std::setprecision(2) << b / 1024.0 << " KB";
+        else
+            out << bytes << " B";
+        return out.str();
+    }
+
+    std::mutex mtx_;
+    std::size_t alloc_count_     = 0;
+    std::size_t free_count_      = 0;
+    std::size_t current_bytes_   = 0;
+    std::size_t peak_bytes_      = 0;
+    std::size_t total_allocated_ = 0;
+};
+
+#define DAAL_MEMTRACK_ALLOC(source, bytes, ptr)                                    \
+    do                                                                             \
+    {                                                                              \
+        if (daal::internal::memory_tracker::is_enabled())                          \
+            daal::internal::memory_tracker::get_instance()->on_alloc(source, bytes, ptr); \
+    } while (0)
+
+#define DAAL_MEMTRACK_FREE(source, ptr, bytes)                                     \
+    do                                                                             \
+    {                                                                              \
+        if (daal::internal::memory_tracker::is_enabled())                          \
+            daal::internal::memory_tracker::get_instance()->on_free(source, ptr, bytes); \
+    } while (0)
 
 } // namespace internal
 } // namespace daal

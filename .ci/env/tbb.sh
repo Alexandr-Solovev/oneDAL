@@ -115,8 +115,27 @@ fi
 build_dir=${build_dir:-${ONEDAL_DIR}/__work/tbb-$target_arch}
 tbb_prefix=${tbb_prefix:-${ONEDAL_DIR}/__deps/tbb-$target_arch}
 
-sudo apt-get update
-sudo apt-get install build-essential gcc gfortran cmake -y
+retry_apt_get() {
+    local max_retries=3
+    local retry_delay=10
+    local attempt=1
+    while [ $attempt -le $max_retries ]; do
+        if sudo apt-get -o Acquire::Retries=3 "$@"; then
+            return 0
+        fi
+        if [ $attempt -lt $max_retries ]; then
+            echo "apt-get failed (attempt ${attempt}/${max_retries}), retrying in ${retry_delay}s..."
+            sleep $retry_delay
+            retry_delay=$((retry_delay * 2))
+        fi
+        attempt=$((attempt + 1))
+    done
+    echo "ERROR: apt-get failed after ${max_retries} attempts"
+    return 1
+}
+
+retry_apt_get update
+retry_apt_get install build-essential gcc gfortran cmake -y
 tbb_src=${tbb_src:-${ONEDAL_DIR}/__work/onetbb-src}
 if [[ ! -d "${tbb_src}" ]] ; then
   TBB_VERSION="${TBB_VERSION:-${TBB_DEFAULT_VERSION}}"

@@ -17,6 +17,7 @@
 #pragma once
 
 #include "oneapi/dal/backend/common.hpp"
+#include "src/services/service_profiler.h"
 
 namespace oneapi::dal::backend {
 
@@ -93,6 +94,10 @@ inline void* malloc(const sycl::queue& queue, std::size_t size, const sycl::usm:
             throw dal::invalid_argument{ detail::error_messages::unknown_usm_pointer_type() };
         }
     }
+    const char* alloc_type = (alloc == sycl::usm::alloc::device)  ? "usm_device"
+                             : (alloc == sycl::usm::alloc::shared) ? "usm_shared"
+                                                                    : "usm_host";
+    DAAL_MEMTRACK_ALLOC(alloc_type, size, ptr);
     return ptr;
 }
 
@@ -110,6 +115,7 @@ inline void* malloc_host(const sycl::queue& queue, std::size_t size) {
 
 inline void free(const sycl::queue& queue, void* pointer) {
     ONEDAL_ASSERT(pointer == nullptr || is_known_usm(queue, pointer));
+    DAAL_MEMTRACK_FREE("usm_free", pointer, 0);
     sycl::free(pointer, queue);
 }
 
