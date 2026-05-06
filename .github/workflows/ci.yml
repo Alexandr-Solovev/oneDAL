@@ -172,3 +172,116 @@ jobs:
           echo "Keep the branch up to date with oneDAL 'main' as it may otherwise not contain the latest changes "
           echo "in the ABI that can lead to erroneous failures in the ABI check."
           .ci/scripts/abi_check.sh __release_lnx_main/daal/latest/lib/intel64/ __release_lnx/daal/latest/lib/intel64/
+
+  LinuxSklearnex:
+    needs: LinuxMakeDPCPP
+    if: github.repository == 'uxlfoundation/oneDAL' && github.event_name == 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - python-version: "3.10"
+            sklearn-version: "1.0"
+          - python-version: "3.13"
+            sklearn-version: "1.6"
+          - python-version: "3.14"
+            sklearn-version: "1.8"
+    uses: uxlfoundation/scikit-learn-intelex/.github/workflows/build-and-test-lnx.yml@main
+    with:
+      onedal-artifact-name: __release_lnx
+      python-version: ${{ matrix.python-version }}
+      sklearn-version: ${{ matrix.sklearn-version }}
+
+  WindowsMakeDPCPP:
+    if: github.repository == 'uxlfoundation/oneDAL'
+    runs-on: windows-2025
+    name: WindowsMakeDPCPP
+    timeout-minutes: 360
+
+    env:
+      WINDOWS_BASEKIT_COMPONENTS: 'intel.oneapi.win.cpp-dpcpp-common:intel.oneapi.win.mkl.devel:intel.oneapi.win.tbb.devel:intel.oneapi.win.dpl'
+
+    steps:
+      - name: Checkout oneDAL
+        uses: actions/checkout@v6
+      - name: Install DPC++
+        shell: cmd
+        run: |
+          set PATH=C:\msys64\usr\bin;%PATH%
+          for /f "delims=" %%i in ('grep -oP -m 1 "(?<=WINDOWS_BASEKIT_URL: ).*" .ci\pipeline\ci.yml') do set "baseurl=%%i"
+          call .ci\scripts\install_basekit.bat %baseurl:'="% %WINDOWS_BASEKIT_COMPONENTS% .\oneapi\
+      - name: Prepare Intel OpenCL CPU runtime
+        run: |
+          & .ci/scripts/collect_opencl_rt.ps1
+      - name: System Info
+        shell: cmd
+        run: |
+          set PATH=C:\msys64\usr\bin;%PATH%
+          pip install cpufeature
+          call .\oneapi\setvars.bat
+          bash .ci/scripts/describe_system.sh
+      - name: Make daal
+        shell: cmd
+        run: |
+          call .\oneapi\setvars.bat
+          call .\.ci\scripts\build.bat daal icx avx2
+      - name: Make onedal_dpc
+        shell: cmd
+        run: |
+          call .\oneapi\setvars.bat
+          call .\.ci\scripts\build.bat onedal_dpc icx avx2
+      - name: daal/cpp examples
+        shell: cmd
+        run: |
+          call .\oneapi\setvars.bat
+          .\.ci\scripts\test.bat daal\cpp lib icx cmake
+          .\.ci\scripts\test.bat daal\cpp dll icx cmake
+      - name: oneapi/cpp examples
+        shell: cmd
+        run: |
+          call .\oneapi\setvars.bat
+          .\.ci\scripts\test.bat oneapi\cpp lib icx cmake
+          .\.ci\scripts\test.bat oneapi\cpp dll icx cmake
+      - name: Compress Intel BaseKit
+        shell: cmd
+        run: |
+          for /D %%s in (.\oneapi\*) do for /f "tokens=2 delims=[]" %%H in ('dir /al %%s\ ^| findstr /i /c:"latest"') do rmdir %%s\latest & mklink /D %%s\latest .\%%~nxH
+          tar -cvzf oneapi.tar.gz .\oneapi
+      - name: Archive build
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v7
+        with:
+          name: __release_win
+          path: .\__release_win
+      - name: Archive Intel BaseKit
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v7
+        with:
+          name: intel_oneapi_basekit
+          path: .\oneapi.tar.gz
+      - name: Archive Intel OpenCL CPU runtime
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v7
+        with:
+          name: opencl_rt_installer
+          path: .\opencl_rt.msi
+
+  WindowsSklearnex:
+    needs: WindowsMakeDPCPP
+    if: github.repository == 'uxlfoundation/oneDAL' && github.event_name == 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - python-version: "3.10"
+            sklearn-version: "1.0"
+          - python-version: "3.13"
+            sklearn-version: "1.6"
+          - python-version: "3.14"
+            sklearn-version: "1.8"
+    uses: uxlfoundation/scikit-learn-intelex/.github/workflows/build-and-test-win.yml@main
+    with:
+      onedal-artifact-name: __release_win
+      oneapi-artifact-name: intel_oneapi_basekit
+      python-version: ${{ matrix.python-version }}
+      sklearn-version: ${{ matrix.sklearn-version }}
