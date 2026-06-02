@@ -464,6 +464,11 @@ services::Status KNNClassificationPredictKernel<algorithmFpType, defaultDense, c
             s |= const_cast<NumericTable *>(modelIndices)->releaseBlockOfRows(modelIndicesBD);
             DAAL_ASSERT(s.ok());
         }
+
+        for (size_t i = heapSize; i < nIndices; ++i)
+        {
+            indicesPtr[i] = -1;
+        }
     }
 
     if (distances.getNumberOfRows() != 0)

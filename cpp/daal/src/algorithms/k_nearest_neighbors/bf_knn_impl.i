@@ -273,20 +273,34 @@ protected:
             delete tls;
         });
 
+        // Pad trailing slots when k > nTrain so callers never observe uninitialized memory.
+        // The sort below keeps real neighbors at the front and pushes the sentinel to the tail;
+        // distance padding is overwritten with -1 after finalize() to match the kd-tree contract.
+        const size_t paddedCount = (k > nTrain) ? (k - nTrain) : 0;
         for (size_t i = 0; i < iSize; i++)
         {
-            for (size_t kk = 0; kk < k; ++kk)
+            const size_t heapCount = heaps[i].size();
+            for (size_t kk = 0; kk < heapCount; ++kk)
             {
                 kDistances[i * k + kk] = heaps[i][kk].distance;
                 kIndexes[i * k + kk]   = heaps[i][kk].index;
             }
+            for (size_t kk = heapCount; kk < k; ++kk)
+            {
+                kDistances[i * k + kk] = daal::services::internal::MaxVal<FPType>::get();
+                kIndexes[i * k + kk]   = -1;
+            }
         }
         distancesInstance->finalize(iSize * k, kDistances);
 
-        // sort by distances
+        // sort by distances; padded MaxVal entries land at the tail.
         for (size_t i = 0; i < iSize; ++i)
         {
             qSort<FPType, int, cpu>(k, kDistances + i * k, kIndexes + i * k);
+            for (size_t kk = k - paddedCount; kk < k; ++kk)
+            {
+                kDistances[i * k + kk] = -1;
+            }
         }
 
         if (resultsToCompute & computeIndicesOfNeighbors)
