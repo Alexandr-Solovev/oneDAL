@@ -118,8 +118,17 @@ struct train_context {
     Index global_row_offset_ = 0;
 
     Index selected_ftr_count_ = 0;
+    // number of rows selected for a single tree out of the rows owned by this rank
     Index selected_row_count_ = 0;
+    // nominal number of rows selected for a single tree over the whole data set,
+    // it defines which rows belong to a tree when bootstrap is disabled
     Index selected_row_total_count_ = 0;
+    // number of rows selected for a single tree over all ranks, i.e. the sum of
+    // selected_row_count_ over the ranks
+    Index selected_row_global_count_ = 0;
+    // per tree capacity of the tree order buffers, equals selected_row_count_ unless
+    // this rank contributes no rows at all
+    Index tree_order_stride_ = 0;
     Index min_observations_in_leaf_node_ = 0;
     Index max_tree_depth_ = 0;
 
