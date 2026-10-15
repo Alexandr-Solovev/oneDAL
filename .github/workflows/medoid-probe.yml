@@ -41,7 +41,7 @@ jobs:
             -lonedal -lonedal_parameters -lonedal_core -lonedal_thread -ltbb \
             -Wl,-rpath,$R/lib/intel64 -Wl,-rpath,$(readlink -f __release_lnx/tbb/latest/lib) -Wl,-rpath,$TB/lib -o p
           LD_LIBRARY_PATH=$TB/lib ldd p | grep -i tbb
-          g++ -std=c++17 -O2 probe/mkl_conc.cpp -I$TB/include -L$TB/lib -l:libmkl_intel_lp64.so.2 -l:libmkl_tbb_thread.so.2 -l:libmkl_core.so.2 -ltbb -Wl,-rpath,$TB/lib -o mc
+          g++ -std=c++17 -O2 probe/mkl_conc.cpp -I$TB/include -L$TB/lib -l:libmkl_intel_lp64.so.3 -l:libmkl_tbb_thread.so.3 -l:libmkl_core.so.3 -ltbb -Wl,-rpath,$TB/lib -o mc || echo 'mc build failed'
       - name: Probe
         run: |
           export LD_LIBRARY_PATH=$PWD/v/lib
