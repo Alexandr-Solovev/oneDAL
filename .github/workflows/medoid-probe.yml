@@ -8,7 +8,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-26.04, ubuntu-24.04]
+        os: [ubuntu-26.04]
+        rep: [1, 2, 3]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     steps:
@@ -31,13 +32,15 @@ jobs:
         run: |
           set -euo pipefail
           lscpu | grep -E "Model name|^CPU\(s\)"
-          python3 -m venv v && v/bin/pip -q install numpy tbb-devel
+          python3 -m venv v && v/bin/pip -q install numpy tbb tbb-devel
+          ls v/lib
           TB=$(readlink -f v)
           R=$(readlink -f __release_lnx/daal/latest)
           v/bin/python probe/gen.py X.bin
           g++ -std=c++17 -O2 probe/probe.cpp -I$R/include -I$TB/include -L$R/lib/intel64 -L$TB/lib \
             -lonedal -lonedal_parameters -lonedal_core -lonedal_thread -ltbb \
             -Wl,-rpath,$R/lib/intel64 -Wl,-rpath,$TB/lib -o p
+          ldd p | grep -i tbb
       - name: Probe
         run: |
           for m in ball_tree kd_tree brute; do ./p X.bin $m 2000; done
