@@ -1,0 +1,47 @@
+name: medoid-probe
+on:
+  push:
+  workflow_dispatch:
+permissions: read-all
+jobs:
+  probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-26.04, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Nightly run id
+        id: rid
+        run: |
+          RUN_ID=$(gh run --repo uxlfoundation/oneDAL list --workflow Nightly-build --json databaseId,event --status success --jq 'map(select(.event == "workflow_dispatch" or .event == "schedule")) | .[0].databaseId')
+          echo "run-id=$RUN_ID" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: __release_lnx
+          github-token: ${{ github.token }}
+          repository: uxlfoundation/oneDAL
+          run-id: ${{ steps.rid.outputs.run-id }}
+          path: ./__release_lnx
+      - name: Build
+        run: |
+          set -euo pipefail
+          lscpu | grep -E "Model name|^CPU\(s\)"
+          python3 -m venv v && v/bin/pip -q install numpy tbb-devel
+          TB=$(readlink -f v)
+          R=$(readlink -f __release_lnx/daal/latest)
+          v/bin/python probe/gen.py X.bin
+          g++ -std=c++17 -O2 probe/probe.cpp -I$R/include -I$TB/include -L$R/lib/intel64 -L$TB/lib \
+            -lonedal -lonedal_parameters -lonedal_core -lonedal_thread -ltbb \
+            -Wl,-rpath,$R/lib/intel64 -Wl,-rpath,$TB/lib -o p
+      - name: Probe
+        run: |
+          for m in ball_tree kd_tree brute; do ./p X.bin $m 2000; done
+          for m in ball_tree brute; do ./p X.bin $m 2000 1; done
+          for m in ball_tree brute; do ./p X.bin $m 2000 2; done
+          for m in ball_tree brute; do MKL_NUM_THREADS=1 ./p X.bin $m 2000; done
+          for m in ball_tree brute; do ./p X.bin $m 2000 0 medoid; done
