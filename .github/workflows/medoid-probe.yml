@@ -9,7 +9,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-26.04]
-        rep: [1, 2, 3, 4, 5, 6, 7, 8]
+        rep: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     steps:
@@ -41,12 +41,12 @@ jobs:
             -lonedal -lonedal_parameters -lonedal_core -lonedal_thread -ltbb \
             -Wl,-rpath,$R/lib/intel64 -Wl,-rpath,$(readlink -f __release_lnx/tbb/latest/lib) -Wl,-rpath,$TB/lib -o p
           LD_LIBRARY_PATH=$TB/lib ldd p | grep -i tbb
-          g++ -std=c++17 -O2 probe/mkl_conc.cpp -I$TB/include -L$TB/lib -lmkl_intel_lp64 -lmkl_tbb_thread -lmkl_core -ltbb -Wl,-rpath,$TB/lib -o mc
+          g++ -std=c++17 -O2 probe/mkl_conc.cpp -I$TB/include -L$TB/lib -l:libmkl_intel_lp64.so.2 -l:libmkl_tbb_thread.so.2 -l:libmkl_core.so.2 -ltbb -Wl,-rpath,$TB/lib -o mc
       - name: Probe
         run: |
           export LD_LIBRARY_PATH=$PWD/v/lib
           lscpu | grep -E "Model name"
-          ./mc 20000
+          ./mc 20000 || echo "mc failed rc=$?"
           MKL_VERBOSE=1 ./p X.bin brute 0 2>&1 | grep -m3 MKL_VERBOSE
           for m in ball_tree brute; do ./p X.bin $m 2000; done
           for m in ball_tree brute; do ./p X.bin $m 2000 3; done
