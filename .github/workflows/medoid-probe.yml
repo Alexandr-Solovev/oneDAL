@@ -40,9 +40,10 @@ jobs:
           g++ -std=c++17 -O2 probe/probe.cpp -I$R/include -I$TB/include -L$R/lib/intel64 -L$TB/lib \
             -lonedal -lonedal_parameters -lonedal_core -lonedal_thread -ltbb \
             -Wl,-rpath,$R/lib/intel64 -Wl,-rpath,$(readlink -f __release_lnx/tbb/latest/lib) -Wl,-rpath,$TB/lib -o p
-          ldd p | grep -i tbb
+          LD_LIBRARY_PATH=$TB/lib ldd p | grep -i tbb
       - name: Probe
         run: |
+          export LD_LIBRARY_PATH=$PWD/v/lib
           for m in ball_tree kd_tree brute; do ./p X.bin $m 2000; done
           for m in ball_tree brute; do ./p X.bin $m 2000 1; done
           for m in ball_tree brute; do ./p X.bin $m 2000 2; done
