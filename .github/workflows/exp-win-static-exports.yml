@@ -13,7 +13,7 @@ permissions:
 jobs:
   measure:
     runs-on: windows-2022
-    timeout-minutes: 120
+    timeout-minutes: 340
     steps:
       - uses: actions/checkout@v7
 
@@ -28,6 +28,11 @@ jobs:
           project=c48b0cee-5374-446e-aea4-3de8ba2ac9ca
           while read -r label build artifact; do
             [ -n "$label" ] || continue
+            # Wait for the artifact of a build that may still be running
+            for i in $(seq 1 60); do
+              curl -sf -o /dev/null "https://dev.azure.com/daal/$project/_apis/build/builds/$build/artifacts?artifactName=${artifact// /%20}&api-version=7.0" && break
+              echo "waiting for $build '$artifact' ($i)"; sleep 300
+            done
             url=$(curl -sf "https://dev.azure.com/daal/$project/_apis/build/builds/$build/artifacts?artifactName=${artifact// /%20}&api-version=7.0" | python -c "import json,sys; print(json.load(sys.stdin)['resource']['downloadUrl'])")
             curl -sfL -o "$label.zip" "$url"
             mkdir -p "rel_$label"
@@ -56,3 +61,4 @@ jobs:
             out/*.md
             out/*.exports
             out/*.dumpbin
+            out/build_*/*.map
