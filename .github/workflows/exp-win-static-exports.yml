@@ -41,7 +41,7 @@ jobs:
           call %TEMP%\oneapi\setvars.bat --force
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
           set PATH=C:\msys64\usr\bin;%PATH%
-          bash -c "set -euo pipefail; while read -r label build artifact; do [ -n \"$label\" ] || continue; d=$(ls -d rel_$label/*/); bash .github/exp/measure.sh $label \"$d\" out; done < <(tr -d '\\r' < .github/exp/variants.txt)"
+          bash -c "set -euo pipefail; while read -r label build artifact; do [ -n \"$label\" ] || continue; d=$(ls -d rel_$label/*/); bash .github/exp/measure.sh $label \"$d\" out; done < <(tr -d '\r' < .github/exp/variants.txt)"
 
       - name: Summary
         if: always()
