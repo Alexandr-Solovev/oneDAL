@@ -1,0 +1,58 @@
+# Experiment only (not for merging): measures static-link exports and sizes for several Azure
+# Windows release artifacts listed in .github/exp/variants.txt.
+name: "EXP Windows static exports"
+
+on:
+  push:
+    branches:
+      - 'exp/win-static-exports'
+
+permissions:
+  contents: read
+
+jobs:
+  measure:
+    runs-on: windows-2022
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install MKL and TBB
+        shell: cmd
+        run: .ci\scripts\install_basekit.bat https://registrationcenter-download.intel.com/akdlm/IRC_NAS/4144bec3-82ce-4672-bd71-5c93a79cd5e7/intel-oneapi-toolkit-2026.1.0.191_offline.exe intel.oneapi.win.mkl.devel:intel.oneapi.win.tbb.devel
+
+      - name: Download releases
+        shell: bash
+        run: |
+          set -euo pipefail
+          project=c48b0cee-5374-446e-aea4-3de8ba2ac9ca
+          while read -r label build artifact; do
+            [ -n "$label" ] || continue
+            url=$(curl -sf "https://dev.azure.com/daal/$project/_apis/build/builds/$build/artifacts?artifactName=${artifact// /%20}&api-version=7.0" | python -c "import json,sys; print(json.load(sys.stdin)['resource']['downloadUrl'])")
+            curl -sfL -o "$label.zip" "$url"
+            mkdir -p "rel_$label"
+            unzip -q "$label.zip" -d "rel_$label"
+            echo "$label $(ls "rel_$label")"
+          done < .github/exp/variants.txt
+
+      - name: Measure
+        shell: cmd
+        run: |
+          call %TEMP%\oneapi\setvars.bat --force
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
+          set PATH=C:\msys64\usr\bin;%PATH%
+          bash -c "set -euo pipefail; while read -r label build artifact; do [ -n \"$label\" ] || continue; d=$(ls -d rel_$label/*/); bash .github/exp/measure.sh $label \"$d\" out; done < .github/exp/variants.txt"
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: cat out/summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: exp-results
+          path: |
+            out/*.md
+            out/*.exports
+            out/*.dumpbin
