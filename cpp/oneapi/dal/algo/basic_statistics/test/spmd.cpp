@@ -50,11 +50,18 @@ public:
     std::vector<input_t> split_compute_input_override(std::int64_t split_count, Args &&...args) {
         const input_t input{ std::forward<Args>(args)... };
 
-        const auto split_data =
-            te::split_table_by_rows<float_t>(this->get_policy(), input.get_data(), split_count);
-
         std::vector<input_t> split_input;
         split_input.reserve(split_count);
+        if (input.get_data().get_kind() == csr_table::kind()) {
+            const auto &data = static_cast<const csr_table &>(input.get_data());
+            for (const auto &block : te::split_csr_by_rows<float_t>(data, split_count)) {
+                split_input.push_back(input_t{ block });
+            }
+            return split_input;
+        }
+
+        const auto split_data =
+            te::split_table_by_rows<float_t>(this->get_policy(), input.get_data(), split_count);
 
         if (input.get_weights().has_data()) {
             const auto split_weights = te::split_table_by_rows<float_t>(this->get_policy(),
@@ -136,6 +143,41 @@ TEMPLATE_LIST_TEST_M(basic_statistics_spmd_test,
     else {
         this->spmd_general_checks(data_, table{}, compute_mode);
     }
+}
+
+TEMPLATE_LIST_TEST_M(basic_statistics_spmd_test,
+                     "basic_statistics spmd CSR",
+                     "[basic_statistics][integration][spmd]",
+                     basic_statistics_types) {
+    using float_t = std::tuple_element_t<0, TestType>;
+    SKIP_IF(this->get_policy().is_cpu());
+    SKIP_IF(this->not_float64_friendly());
+    this->set_rank_count(GENERATE(2, 3));
+
+    constexpr std::int64_t row_count = 600, column_count = 5;
+    const te::dataframe df =
+        te::dataframe_builder{ row_count, column_count }.fill_normal(-30, 30, 7777).build();
+    std::vector<float_t> dense(df.get_array().get_data(),
+                               df.get_array().get_data() + row_count * column_count);
+    // One value in three is stored and the second half is shifted, so the ranks' means differ.
+    for (std::int64_t i = 0; i < row_count; ++i) {
+        for (std::int64_t j = 0; j < column_count; ++j) {
+            float_t &x = dense[i * column_count + j];
+            x = ((i + j) % 3 == 0) ? x + float_t(i < row_count / 2 ? 0 : 50) : float_t(0);
+        }
+    }
+    const auto data =
+        te::dense_to_sparse_csr(dense.data(), row_count, column_count, sparse_indexing::one_based);
+
+    const auto mode = bs::result_option_id(dal::result_option_id_base(mask_full));
+    const auto desc =
+        bs::descriptor<float_t, bs::method::sparse, bs::task::compute>{}.set_result_options(mode);
+    const double tol = std::is_same_v<float_t, double> ? 1e-9 : 1e-4;
+    this->check_compute_result(mode,
+                               homogen_table::wrap(dense.data(), row_count, column_count),
+                               table{},
+                               this->compute_override(desc, data),
+                               tol);
 }
 
 } // namespace oneapi::dal::basic_statistics::test

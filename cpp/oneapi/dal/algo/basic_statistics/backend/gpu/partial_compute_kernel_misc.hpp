@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include "oneapi/dal/backend/communicator.hpp"
 #include "oneapi/dal/backend/primitives/ndarray.hpp"
 #include "oneapi/dal/detail/profiler.hpp"
 
@@ -25,9 +26,8 @@ namespace oneapi::dal::basic_statistics::backend {
 
 namespace pr = oneapi::dal::backend::primitives;
 
-/// Merge steps of `partial_compute`, shared by the dense and the sparse GPU kernels: both
-/// of them accumulate the same partial statistics, and only the way the current block's
-/// statistics are produced differs. Every argument and result stays in device memory.
+/// Merge steps shared by the dense and the sparse GPU kernels, for `partial_compute` blocks
+/// and for ranks. Every argument and result stays in device memory.
 
 template <typename Float>
 inline auto update_partial_n_rows_results(sycl::queue& q,
@@ -149,6 +149,53 @@ inline auto update_partial_sums(sycl::queue& q,
     });
 
     return std::make_tuple(result_sums, result_sums2, result_sums2cent, update_sums_event);
+}
+
+/// Sums the centered sums of squares of all ranks around the global mean,
+/// `ssc_r + n_r * (mean_r - mean)^2` summed over the ranks `r`.
+///
+/// @param[in]  q               The SYCL queue
+/// @param[in]  comm            The communicator
+/// @param[in]  local_sums      This rank's sums
+/// @param[in]  global_sums     The sums over all ranks
+/// @param[in]  local_sums2cent This rank's centered sums of squares
+/// @param[in]  local_rows      This rank's number of rows
+/// @param[in]  global_rows     The number of rows over all ranks
+///
+/// @return The centered sums of squares over all ranks
+template <typename Float, typename Comm>
+inline pr::ndarray<Float, 1> allreduce_sums2cent(sycl::queue& q,
+                                                 Comm& comm,
+                                                 const pr::ndview<Float, 1>& local_sums,
+                                                 const pr::ndview<Float, 1>& global_sums,
+                                                 const pr::ndview<Float, 1>& local_sums2cent,
+                                                 std::int64_t local_rows,
+                                                 std::int64_t global_rows) {
+    const std::int64_t column_count = local_sums.get_count();
+    auto result = pr::ndarray<Float, 1>::empty(q, column_count, sycl::usm::alloc::device);
+    auto result_ptr = result.get_mutable_data();
+    const auto local_sums_ptr = local_sums.get_data();
+    const auto global_sums_ptr = global_sums.get_data();
+    const auto local_sums2cent_ptr = local_sums2cent.get_data();
+    const Float n_r = Float(local_rows);
+    // A rank without rows has zero sums and adds nothing.
+    const Float inv_n_r = local_rows > 0 ? Float(1) / n_r : Float(0);
+    const Float inv_n = global_rows > 0 ? Float(1) / Float(global_rows) : Float(0);
+    auto event = q.parallel_for(sycl::range<1>(column_count), [=](sycl::id<1> j) {
+        const Float mean_shift = local_sums_ptr[j] * inv_n_r - global_sums_ptr[j] * inv_n;
+        result_ptr[j] = local_sums2cent_ptr[j] + n_r * mean_shift * mean_shift;
+    });
+    ONEDAL_PROFILER_TASK(allreduce_sums2cent, q);
+    comm.allreduce(result.flatten(q, { event }), spmd::reduce_op::sum).wait();
+    return result;
+}
+
+/// A copy of a partial result array, so that an allreduce leaves the partial result as it was.
+template <typename Float>
+inline pr::ndarray<Float, 1> copy_for_allreduce(sycl::queue& q, const pr::ndview<Float, 1>& src) {
+    auto dst = pr::ndarray<Float, 1>::empty(q, { src.get_count() }, sycl::usm::alloc::device);
+    copy(q, dst, src, {}).wait_and_throw();
+    return dst;
 }
 
 } // namespace oneapi::dal::basic_statistics::backend

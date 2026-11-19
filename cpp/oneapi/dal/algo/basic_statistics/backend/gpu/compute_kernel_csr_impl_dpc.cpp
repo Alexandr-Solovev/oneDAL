@@ -16,6 +16,7 @@
 
 #include "oneapi/dal/algo/basic_statistics/backend/gpu/compute_kernel.hpp"
 #include "oneapi/dal/algo/basic_statistics/backend/gpu/compute_kernel_csr_impl.hpp"
+#include "oneapi/dal/algo/basic_statistics/backend/gpu/partial_compute_kernel_misc.hpp"
 #include "oneapi/dal/table/csr_accessor.hpp"
 #include "oneapi/dal/backend/primitives/utils.hpp"
 #include "oneapi/dal/util/common.hpp"
@@ -44,85 +45,50 @@ sycl::event compute_kernel_csr_impl<Float>::finalize_for_distr(
     pr::ndarray<Float, 2>& results,
     const input_t& input,
     const std::vector<sycl::event>& deps) {
+    const auto column_count = input.get_data().get_column_count();
+    const std::int64_t local_rows = input.get_data().get_row_count();
+    std::int64_t global_rows = local_rows;
+    communicator.allreduce(global_rows, spmd::reduce_op::sum).wait();
+
+    // Rows `stat::<name>` of `results` hold this rank's merged statistics.
+    const auto all = results.flatten(q, deps);
+    const auto row = [&](stat s) {
+        return all.get_slice(s * column_count, (s + 1) * column_count);
+    };
+    const auto row_view = [&](stat s) {
+        return pr::ndview<Float, 1>::wrap(row(s).get_data(), { column_count });
+    };
+    communicator.allreduce(row(stat::min), spmd::reduce_op::min).wait();
+    communicator.allreduce(row(stat::max), spmd::reduce_op::max).wait();
+    const auto local_sums = copy_for_allreduce<Float>(q, row_view(stat::sum));
+    communicator.allreduce(row(stat::sum), spmd::reduce_op::sum).wait();
+    communicator.allreduce(row(stat::sum2), spmd::reduce_op::sum).wait();
+    const auto sums2cent = allreduce_sums2cent<Float>(q,
+                                                      communicator,
+                                                      local_sums,
+                                                      row_view(stat::sum),
+                                                      row_view(stat::sum2_cent),
+                                                      local_rows,
+                                                      global_rows);
+
     auto result_ptr = results.get_mutable_data();
-    const csr_table csr_tdata = static_cast<const csr_table&>(input.get_data());
-    auto [csr_data, column_indices, row_offsets] =
-        csr_accessor<const Float>(csr_tdata).pull(q, { 0, -1 }, sparse_indexing::zero_based);
-    const auto column_count = csr_tdata.get_column_count();
-    const auto row_count = csr_tdata.get_row_count();
-    const auto nonzero_count = csr_tdata.get_non_zero_count();
-
-    auto host_results = results.flatten(q, deps);
-    communicator
-        .allreduce(host_results.get_slice(stat::min * column_count, column_count),
-                   spmd::reduce_op::min)
-        .wait();
-    communicator
-        .allreduce(host_results.get_slice(stat::max * column_count, column_count),
-                   spmd::reduce_op::max)
-        .wait();
-    communicator
-        .allreduce(host_results.get_slice(stat::sum * column_count, column_count),
-                   spmd::reduce_op::sum)
-        .wait();
-    communicator
-        .allreduce(host_results.get_slice(stat::sum2 * column_count, column_count),
-                   spmd::reduce_op::sum)
-        .wait();
-    communicator
-        .allreduce(host_results.get_slice(stat::moment2 * column_count, column_count),
-                   spmd::reduce_op::sum)
-        .wait();
-
-    results.assign_from_host(q, host_results.get_data(), res_opt_count_ * column_count)
-        .wait_and_throw();
-
-    auto csr_data_ptr = csr_data.get_data();
-    auto column_indices_ptr = column_indices.get_data();
-    auto distr_range = sycl::range<1>(column_count);
-    auto calc_s2c_event = q.submit([&](sycl::handler& cgh) {
-        cgh.depends_on(deps);
-        cgh.parallel_for(distr_range, [=](std::int64_t col_idx) {
-            auto mean_val = result_ptr[stat::sum * column_count + col_idx] / row_count;
-            result_ptr[stat::mean * column_count + col_idx] = mean_val;
-            Float sum2_cent = Float(0);
-            std::int32_t nnz_row_count = 0;
-            for (std::int32_t data_idx = 0; data_idx < nonzero_count; ++data_idx) {
-                if (col_idx == column_indices_ptr[data_idx]) {
-                    auto val = csr_data_ptr[data_idx];
-                    sum2_cent += (val - mean_val) * (val - mean_val);
-                    nnz_row_count += 1;
-                }
-            }
-            // For zero values sum2_cent is just square of mean value
-            sum2_cent += (row_count - nnz_row_count) * mean_val * mean_val;
-
-            result_ptr[stat::sum2_cent * column_count + col_idx] = sum2_cent;
-        });
+    const auto sums2cent_ptr = sums2cent.get_data();
+    const Float n = Float(global_rows);
+    auto event = q.parallel_for(sycl::range<1>(column_count), [=](sycl::id<1> j) {
+        const Float mean = result_ptr[stat::sum * column_count + j] / n;
+        const Float variance = sums2cent_ptr[j] / (n - Float(1));
+        const Float stddev = sycl::sqrt(variance);
+        result_ptr[stat::sum2_cent * column_count + j] = sums2cent_ptr[j];
+        result_ptr[stat::mean * column_count + j] = mean;
+        result_ptr[stat::moment2 * column_count + j] =
+            result_ptr[stat::sum2 * column_count + j] / n;
+        result_ptr[stat::variance * column_count + j] = variance;
+        result_ptr[stat::stddev * column_count + j] = stddev;
+        result_ptr[stat::variation * column_count + j] = stddev / mean;
     });
-
-    host_results = results.flatten(q, { calc_s2c_event });
-    communicator
-        .allreduce(host_results.get_slice(stat::sum2_cent * column_count, column_count),
-                   spmd::reduce_op::sum)
-        .wait();
-    auto allreduce_event =
-        results.assign_from_host(q, host_results.get_data(), res_opt_count_ * column_count);
-
-    auto final_event = q.submit([&](sycl::handler& cgh) {
-        cgh.depends_on({ allreduce_event });
-        cgh.parallel_for(distr_range, [=](std::int64_t col_idx) {
-            auto mean_val = result_ptr[stat::mean * column_count + col_idx];
-            result_ptr[stat::variance * column_count + col_idx] =
-                result_ptr[stat::sum2_cent * column_count + col_idx] / (row_count - 1);
-            result_ptr[stat::stddev * column_count + col_idx] =
-                sycl::sqrt(result_ptr[stat::variance * column_count + col_idx]);
-            result_ptr[stat::variation * column_count + col_idx] =
-                result_ptr[stat::stddev * column_count + col_idx] / mean_val;
-        });
-    });
-
-    return final_event;
+    // `sums2cent` dies with this frame, so the kernel that reads it has to finish here.
+    event.wait_and_throw();
+    return event;
 }
 
 template <typename Float>
@@ -369,7 +335,8 @@ csr_stats<Float> compute_kernel_csr_impl<Float>::compute_stats(const bk::context
     });
 
     if (distr_mode) {
-        second_merge_event = finalize_for_distr(queue, comm, result_data, input, { merge_event });
+        second_merge_event =
+            finalize_for_distr(queue, comm, result_data, input, { second_merge_event });
     }
     // The first- and second-order kernels read `csr_data` / `column_indices` and are only
     // enqueued here, so those arrays go back to the caller rather than dying with this
