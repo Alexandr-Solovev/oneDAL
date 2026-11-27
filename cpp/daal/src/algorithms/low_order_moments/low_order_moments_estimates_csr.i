@@ -31,17 +31,33 @@
     #define _CSR_SUM2_ENABLE_
 #endif
 
-/// Welford's update of one column's running moments with the observation `x`. The count is
-/// always kept: it gives the number of implicit zeros of the column.
+/// Adds the observation `x` to one column's running moments. The count is always kept: it gives
+/// the number of implicit zeros of the column.
+///
+/// @tparam fast  False: Welford's update of the mean and the centered sum of squares, a division
+///               per value. True: sums of `x - shift` and of its square, where `shift` is the
+///               first value the chunk saw in the column, so the sums do not cancel.
+template <bool fast>
 inline void addObservation(double * const col, const double x)
 {
     const double c = col[slotCount] + 1.0;
-    col[slotCount] = c;
 #ifdef _CSR_CENTERED_ENABLE_
-    const double delta = x - col[slotMean];
-    col[slotMean] += delta / c;
-    col[slotM2] += delta * (x - col[slotMean]);
+    if (fast)
+    {
+        // A branch, not a select: it is taken once per column and chunk, and saves a store per value.
+        if (c == 1.0) col[slotMean] = x;
+        const double d = x - col[slotMean];
+        col[slotShiftSum] += d;
+        col[slotM2] += d * d;
+    }
+    else
+    {
+        const double delta = x - col[slotMean];
+        col[slotMean] += delta / c;
+        col[slotM2] += delta * (x - col[slotMean]);
+    }
 #endif
+    col[slotCount] = c;
 #ifdef _MIN_ENABLE_
     col[slotMin] = x < col[slotMin] ? x : col[slotMin];
 #endif
@@ -50,15 +66,38 @@ inline void addObservation(double * const col, const double x)
 #endif
 }
 
-/// Moments of all rows of a CSR table, from its stored values only. Each chunk runs Welford's
-/// update over its values; the chunks are merged, and the implicit zeros join as one final
-/// observation of value 0 and weight (nRows - nnz_j), as a weighted dense column would.
-/// The sum and the sum of squares are derived from the mean and the centered sum of squares.
+#ifdef _CSR_CENTERED_ENABLE_
+/// The mean and the centered sum of squares of one column of a chunk, from its slots.
+template <bool fast>
+inline void chunkMoments(const double * const col, double & mean, double & m2)
+{
+    if (fast)
+    {
+        const double c   = col[slotCount];
+        const double inv = c > 0.0 ? 1.0 / c : 0.0;
+        mean             = col[slotMean] + col[slotShiftSum] * inv;
+        m2               = col[slotM2] - col[slotShiftSum] * col[slotShiftSum] * inv;
+        // Rounding can leave a tiny negative value where all the values of the column are equal.
+        m2 = m2 > 0.0 ? m2 : 0.0;
+    }
+    else
+    {
+        mean = col[slotMean];
+        m2   = col[slotM2];
+    }
+}
+#endif
+
+/// Moments of all rows of a CSR table in one pass over its stored values. Each chunk accumulates
+/// its own moments; the chunks are merged, and the implicit zeros join as one final observation
+/// of value 0 and weight (nRows - nnz_j), as a weighted dense column would. The sum and the sum
+/// of squares are derived from the mean and the centered sum of squares.
 ///
+/// @tparam fast           Whether a chunk keeps shifted sums instead of Welford's update
 /// @param[in]  table      The CSR table
 /// @param[in]  userSums   Precomputed column sums used for the mean, or nullptr
 /// @param[out] moments    The moments of the enabled estimates; `sum` holds `userSums` when they are given
-template <typename algorithmFPType, CpuType cpu>
+template <typename algorithmFPType, CpuType cpu, bool fast>
 Status computeMoments(CSRNumericTableIface & table, size_t nRows, size_t nFeatures, const algorithmFPType * userSums, Moments<cpu> & moments)
 {
     Status st;
@@ -83,8 +122,9 @@ Status computeMoments(CSRNumericTableIface & table, size_t nRows, size_t nFeatur
             double * const col = a + j * slotsPerColumn;
             col[slotCount]     = 0.0;
 #ifdef _CSR_CENTERED_ENABLE_
-            col[slotMean] = 0.0;
-            col[slotM2]   = 0.0;
+            col[slotMean]     = 0.0;
+            col[slotM2]       = 0.0;
+            col[slotShiftSum] = 0.0;
 #endif
 #ifdef _MIN_ENABLE_
             col[slotMin] = MaxVal<double>::get();
@@ -104,55 +144,9 @@ Status computeMoments(CSRNumericTableIface & table, size_t nRows, size_t nFeatur
         // A sparse block can report success with no buffer when converting the value type fails to allocate.
         DAAL_CHECK_THR(nnz == 0 || (values && cols), ErrorMemoryAllocationFailed);
 
-        // Values of a column repeated in a row are summed, as in the dense row. Rows with sorted
-        // indices sum the adjacent repeats; the others go through a per-column scratch.
-        const size_t * const rowOffsets = block.rows();
-        TArrayScalable<size_t, cpu> seenRow;
-        TArrayScalable<double, cpu> pending;
-        for (size_t r = 0; r < rows; r++)
-        {
-            const size_t begin = rowOffsets[r] - rowOffsets[0];
-            const size_t end   = rowOffsets[r + 1] - rowOffsets[0];
-            bool sorted        = true;
-            for (size_t k = begin + 1; k < end && sorted; k++)
-            {
-                sorted = cols[k - 1] <= cols[k];
-            }
-            if (sorted)
-            {
-                for (size_t k = begin; k < end;)
-                {
-                    const size_t j = cols[k];
-                    double x       = values[k];
-                    while (++k < end && cols[k] == j)
-                    {
-                        x += values[k];
-                    }
-                    addObservation(a + (j - 1) * slotsPerColumn, x);
-                }
-                continue;
-            }
-            if (!seenRow.get())
-            {
-                seenRow.reset(nFeatures);
-                pending.reset(nFeatures);
-                DAAL_CHECK_THR(seenRow.get() && pending.get(), ErrorMemoryAllocationFailed);
-                services::internal::service_memset_seq<size_t, cpu>(seenRow.get(), noRow, nFeatures);
-            }
-            for (size_t k = begin; k < end; k++)
-            {
-                const size_t j = cols[k] - 1;
-                pending[j]     = (seenRow[j] == r) ? pending[j] + values[k] : double(values[k]);
-                seenRow[j]     = r;
-            }
-            for (size_t k = begin; k < end; k++)
-            {
-                const size_t j = cols[k] - 1;
-                if (seenRow[j] != r) continue;
-                addObservation(a + j * slotsPerColumn, pending[j]);
-                seenRow[j] = noRow;
-            }
-        }
+        const bool walked = forEachObservation<algorithmFPType, cpu>(block, rows, nFeatures,
+                                                                     [a](size_t j, double x) { addObservation<fast>(a + j * slotsPerColumn, x); });
+        DAAL_CHECK_THR(walked, ErrorMemoryAllocationFailed);
     });
     DAAL_CHECK_SAFE_STATUS();
 
@@ -180,8 +174,7 @@ Status computeMoments(CSRNumericTableIface & table, size_t nRows, size_t nFeatur
             const double * const col = first + t * slotsPerColumn;
             c[t]                     = col[slotCount];
 #ifdef _CSR_CENTERED_ENABLE_
-            m[t]  = col[slotMean];
-            m2[t] = col[slotM2];
+            chunkMoments<fast>(col, m[t], m2[t]);
 #endif
 #ifdef _MIN_ENABLE_
             lo[t] = col[slotMin];
@@ -198,7 +191,9 @@ Status computeMoments(CSRNumericTableIface & table, size_t nRows, size_t nFeatur
             {
                 const double * const col = chunk + t * slotsPerColumn;
 #ifdef _CSR_CENTERED_ENABLE_
-                mergeMoments(c[t], m[t], m2[t], col[slotCount], col[slotMean], col[slotM2]);
+                double chunkMean, chunkM2;
+                chunkMoments<fast>(col, chunkMean, chunkM2);
+                mergeMoments(c[t], m[t], m2[t], col[slotCount], chunkMean, chunkM2);
 #else
                 c[t] += col[slotCount];
 #endif
@@ -280,7 +275,7 @@ Status computeBatch(NumericTable * dataTable, Result * result)
 #endif
 
     Moments<cpu> m;
-    DAAL_CHECK_STATUS(st, (computeMoments<algorithmFPType, cpu>(*csr, nRows, nFeatures, userSums.get(), m)));
+    DAAL_CHECK_STATUS(st, (computeMoments<algorithmFPType, cpu, (method != singlePassCSR)>(*csr, nRows, nFeatures, userSums.get(), m)));
     if (nRows == 0) return st;
 
     WriteOnlyRows<algorithmFPType, cpu> out[lastResultId + 1];
@@ -356,7 +351,7 @@ Status computeOnline(NumericTable * dataTable, PartialResult * partialResult, bo
 #endif
 
     Moments<cpu> m;
-    DAAL_CHECK_STATUS(st, (computeMoments<algorithmFPType, cpu>(*csr, nRows, nFeatures, userSums.get(), m)));
+    DAAL_CHECK_STATUS(st, (computeMoments<algorithmFPType, cpu, (method != singlePassCSR)>(*csr, nRows, nFeatures, userSums.get(), m)));
 
     WriteRows<algorithmFPType, cpu> part[lastPartialResultId + 1];
     algorithmFPType * res[lastPartialResultId + 1];

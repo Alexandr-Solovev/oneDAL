@@ -78,8 +78,9 @@ struct Moments
 enum ColumnSlot
 {
     slotCount = 0,
-    slotMean,
-    slotM2,
+    slotMean,     // the shift in the fast kernel
+    slotM2,       // the sum of squared shifted values in the fast kernel
+    slotShiftSum, // the sum of shifted values, fast kernel only
     slotMin,
     slotMax,
     slotsPerColumn = 8
@@ -128,6 +129,70 @@ inline void mergeMoments(double & cA, double & meanA, double & m2A, double cB, d
 
 /// No row has touched the column yet in the per-column scratch of an unsorted row.
 constexpr size_t noRow = ~size_t(0);
+
+/// Calls `add(j, x)` once per column a row stores, `j` zero-based and `x` the sum of the row's
+/// values of that column, as in the dense row. Rows with sorted indices sum the adjacent repeats;
+/// the others go through a per-column scratch.
+///
+/// @param[in] block      Rows of the table with one-based indices
+/// @param[in] rows       Number of rows in `block`
+/// @param[in] nFeatures  Number of columns
+/// @param[in] add        Receives every observation
+/// @return    False if the scratch could not be allocated
+template <typename algorithmFPType, CpuType cpu, typename Add>
+bool forEachObservation(ReadRowsCSR<algorithmFPType, cpu> & block, size_t rows, size_t nFeatures, const Add & add)
+{
+    const algorithmFPType * const values = block.values();
+    const size_t * const cols            = block.cols();
+    const size_t * const rowOffsets      = block.rows();
+    TArrayScalable<size_t, cpu> seenRow;
+    TArrayScalable<double, cpu> pending;
+    for (size_t r = 0; r < rows; r++)
+    {
+        const size_t begin = rowOffsets[r] - rowOffsets[0];
+        const size_t end   = rowOffsets[r + 1] - rowOffsets[0];
+        bool sorted        = true;
+        for (size_t k = begin + 1; k < end && sorted; k++)
+        {
+            sorted = cols[k - 1] <= cols[k];
+        }
+        if (sorted)
+        {
+            for (size_t k = begin; k < end;)
+            {
+                const size_t j = cols[k];
+                double x       = values[k];
+                while (++k < end && cols[k] == j)
+                {
+                    x += values[k];
+                }
+                add(j - 1, x);
+            }
+            continue;
+        }
+        if (!seenRow.get())
+        {
+            seenRow.reset(nFeatures);
+            pending.reset(nFeatures);
+            if (!seenRow.get() || !pending.get()) return false;
+            services::internal::service_memset_seq<size_t, cpu>(seenRow.get(), noRow, nFeatures);
+        }
+        for (size_t k = begin; k < end; k++)
+        {
+            const size_t j = cols[k] - 1;
+            pending[j]     = (seenRow[j] == r) ? pending[j] + values[k] : double(values[k]);
+            seenRow[j]     = r;
+        }
+        for (size_t k = begin; k < end; k++)
+        {
+            const size_t j = cols[k] - 1;
+            if (seenRow[j] != r) continue;
+            add(j, pending[j]);
+            seenRow[j] = noRow;
+        }
+    }
+    return true;
+}
 
 /// Precomputed column sums of `sumCSR`, read from the table's basic statistics.
 template <typename algorithmFPType, CpuType cpu>
